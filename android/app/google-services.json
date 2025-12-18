@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "395101532734",
+    "project_id": "roundzapp",
+    "storage_bucket": "roundzapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:395101532734:android:33557b44f22b733161576f",
+        "android_client_info": {
+          "package_name": "com.example.roundz"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC9Ay5ofJjNAxn_08Z_AqXmD56OLrX4XD4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
