@@ -16,6 +16,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLogin = true;
   String _email = '';
   String _password = '';
+  String _username = '';
   String _errorMessage = '';
   bool _isLoading = false;
 
@@ -35,7 +36,8 @@ class _LoginPageState extends State<LoginPage> {
         if (_isLogin) {
           await _auth.signInWithEmailAndPassword(_email, _password);
         } else {
-          await _auth.createUserWithEmailAndPassword(_email, _password);
+          await _auth.createUserWithEmailAndPassword(
+              _email, _password, _username);
         }
         // Navigation is handled by the StreamBuilder in main.dart
       } on FirebaseAuthException catch (e) {
@@ -70,6 +72,18 @@ class _LoginPageState extends State<LoginPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
+              if (!_isLogin)
+                TextFormField(
+                  decoration: const InputDecoration(labelText: 'Username'),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter a username';
+                    }
+                    return null;
+                  },
+                  onSaved: (value) => _username = value!.trim(),
+                ),
+              if (!_isLogin) const SizedBox(height: 16),
               TextFormField(
                 decoration: const InputDecoration(labelText: 'Email'),
                 keyboardType: TextInputType.emailAddress,

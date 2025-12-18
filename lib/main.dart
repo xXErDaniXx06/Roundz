@@ -3,7 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'features/auth/login_page.dart';
-import 'features/home/home_page.dart';
+import 'features/layout/main_layout.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,8 +21,21 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Roundz',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.white,
+          brightness: Brightness.dark,
+          primary: Colors.white,
+          onPrimary: Colors.black,
+          surface: Colors.black,
+          onSurface: Colors.white,
+        ),
+        scaffoldBackgroundColor: Colors.black,
         useMaterial3: true,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
       ),
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
@@ -32,7 +45,7 @@ class MyApp extends StatelessWidget {
               body: Center(child: CircularProgressIndicator()),
             );
           } else if (snapshot.hasData) {
-            return const HomePage();
+            return const MainLayout();
           } else {
             return const LoginPage();
           }
