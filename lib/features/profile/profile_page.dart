@@ -61,6 +61,7 @@ class ProfilePage extends StatelessWidget {
           final int chupitos = stats['chupitos'] ?? 0;
           final int friendsCount = data['friendsCount'] ?? 0;
           final String username = data['username'] ?? 'User';
+          final String photoUrl = data['photoUrl'] ?? '';
 
           return Padding(
             padding: const EdgeInsets.all(16.0),
@@ -70,11 +71,15 @@ class ProfilePage extends StatelessWidget {
                 Center(
                   child: Column(
                     children: [
-                      const CircleAvatar(
+                      CircleAvatar(
                         radius: 50,
                         backgroundColor: Colors.white10,
-                        child:
-                            Icon(Icons.person, size: 50, color: Colors.white),
+                        backgroundImage:
+                            photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
+                        child: photoUrl.isEmpty
+                            ? const Icon(Icons.person,
+                                size: 50, color: Colors.white)
+                            : null,
                       ),
                       const SizedBox(height: 16),
                       Text(

@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../services/database_service.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -40,6 +43,54 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _pickAndUploadImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final file = File(pickedFile.path);
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('profile_images')
+          .child('${user!.uid}.jpg');
+
+      await ref.putFile(file);
+      final url = await ref.getDownloadURL();
+
+      setState(() {
+        _photoUrl = url;
+      });
+
+      // Auto-save the new URL
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .update({
+        'photoUrl': _photoUrl,
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile picture updated!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error uploading image: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   Future<void> _saveSettings() async {
     if (!_formKey.currentState!.validate()) return;
     _formKey.currentState!.save();
@@ -52,7 +103,6 @@ class _SettingsPageState extends State<SettingsPage> {
           .doc(user!.uid)
           .update({
         'username': _username,
-        'photoUrl': _photoUrl,
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -93,20 +143,45 @@ class _SettingsPageState extends State<SettingsPage> {
                           fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 16),
+                    Center(
+                      child: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 50,
+                            backgroundColor: Colors.grey.shade800,
+                            backgroundImage: _photoUrl.isNotEmpty
+                                ? NetworkImage(_photoUrl)
+                                : null,
+                            child: _photoUrl.isEmpty
+                                ? const Icon(Icons.person,
+                                    size: 50, color: Colors.white)
+                                : null,
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: GestureDetector(
+                              onTap: _pickAndUploadImage,
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.camera_alt,
+                                    size: 20, color: Colors.black),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
                     TextFormField(
                       initialValue: _username,
                       decoration: const InputDecoration(labelText: 'Username'),
                       validator: (val) => val!.isEmpty ? 'Required' : null,
                       onSaved: (val) => _username = val!.trim(),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      initialValue: _photoUrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Profile Picture URL',
-                        hintText: 'https://example.com/image.jpg',
-                      ),
-                      onSaved: (val) => _photoUrl = val!.trim(),
                     ),
                     const SizedBox(height: 32),
                     ElevatedButton(
