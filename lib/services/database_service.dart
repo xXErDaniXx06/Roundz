@@ -49,6 +49,29 @@ class DatabaseService {
     }
   }
 
+  // Decrement Stat (Only for self, prevent negative)
+  Future<void> decrementStat(String uid, String statName) async {
+    final docRef = _users.doc(uid);
+    try {
+      await _db.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) return;
+
+        final data = snapshot.data() as Map<String, dynamic>;
+        final stats = data['stats'] as Map<String, dynamic>? ?? {};
+        final currentValue = stats[statName] ?? 0;
+
+        if (currentValue > 0) {
+          transaction.update(docRef, {
+            'stats.$statName': FieldValue.increment(-1),
+          });
+        }
+      });
+    } catch (e) {
+      debugPrint('Error decrementing stat: $e');
+    }
+  }
+
   // Add Friend (Simplistic: A adds B -> B is in A's friend list)
   // Logic: For B to see A's stats, A must add B (or strict mutual).
   // Request: "Stats visible only to added friends".

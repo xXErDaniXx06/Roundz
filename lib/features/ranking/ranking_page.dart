@@ -1,17 +1,57 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-class RankingPage extends StatelessWidget {
+class RankingPage extends StatefulWidget {
   const RankingPage({super.key});
+
+  @override
+  State<RankingPage> createState() => _RankingPageState();
+}
+
+class _RankingPageState extends State<RankingPage> {
+  // Sorting state
+  String _sortBy = 'parties'; // 'parties', 'cubatas', 'chupitos'
+  bool _isDescending = true;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Ranking Global')),
+      appBar: AppBar(
+        title: const Text('Global Ranking'),
+        actions: [
+          // Sort Criteria Dropdown/Menu
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.filter_list),
+            onSelected: (value) {
+              setState(() {
+                _sortBy = value;
+              });
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                  value: 'parties', child: Text('Sort by Parties')),
+              const PopupMenuItem(
+                  value: 'cubatas', child: Text('Sort by Cubatas')),
+              const PopupMenuItem(
+                  value: 'chupitos', child: Text('Sort by Chupitos')),
+            ],
+          ),
+          // Sort Order Toggle
+          IconButton(
+            icon:
+                Icon(_isDescending ? Icons.arrow_downward : Icons.arrow_upward),
+            onPressed: () {
+              setState(() {
+                _isDescending = !_isDescending;
+              });
+            },
+          ),
+        ],
+      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('users')
-            .orderBy('stats.parties', descending: true)
+            .orderBy('stats.$_sortBy', descending: _isDescending)
             .limit(50)
             .snapshots(),
         builder: (context, snapshot) {
@@ -28,40 +68,52 @@ class RankingPage extends StatelessWidget {
             return const Center(child: Text('No users found'));
           }
 
-          return ListView.builder(
-            itemCount: docs.length,
-            itemBuilder: (context, index) {
-              final data = docs[index].data() as Map<String, dynamic>;
-              final username = data['username'] ?? 'Unknown';
-              final stats = data['stats'] as Map<String, dynamic>? ?? {};
-              final parties = stats['parties'] ?? 0;
-              // Privacy check: In a real app, we might hide stats if not friends.
-              // For "Ranking", usually the metric being ranked is public or
-              // implies a "Global Leaderboard". The user said "Ranking" and "Friends Only Privacy".
-              // Interpretation: Global Ranking shows the score? Or only shows friends?
-              // "entre amigos se pueda ver incluso un ranking" -> "among friends one can see a ranking".
-              // This implies the ranking might be Friend-Only?
-              // But "Ranking Global" usually is global.
-              // Let's implement Global for now as it's easier to verify, but maybe hide other stats?
-              // The user said: "numero de fiestas... solo puede ser visto por los amigos agregados".
-              // This contradicts a Global Ranking of Parties unless the ranking ITSELF is friends-only.
-              // Let's stick to Global for now to show functionality, but be aware.
-
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Colors.white10,
-                  child: Text('${index + 1}',
-                      style: const TextStyle(color: Colors.white)),
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Text(
+                  'Ranking by ${_sortBy.toUpperCase()} (${_isDescending ? "High to Low" : "Low to High"})',
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
                 ),
-                title:
-                    Text(username, style: const TextStyle(color: Colors.white)),
-                trailing: Text('$parties Parties',
-                    style: const TextStyle(color: Colors.white70)),
-              );
-            },
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final data = docs[index].data() as Map<String, dynamic>;
+                    final username = data['username'] ?? 'Unknown';
+                    final stats = data['stats'] as Map<String, dynamic>? ?? {};
+                    final value = stats[_sortBy] ?? 0;
+
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: _getRankColor(index),
+                        foregroundColor: Colors.white,
+                        child: Text('${index + 1}'),
+                      ),
+                      title: Text(username,
+                          style: const TextStyle(color: Colors.white)),
+                      trailing: Text(
+                        '$value ${_sortBy.toUpperCase()}',
+                        style: const TextStyle(
+                            color: Colors.white70, fontWeight: FontWeight.bold),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           );
         },
       ),
     );
+  }
+
+  Color _getRankColor(int index) {
+    if (index == 0) return Colors.amber; // Gold
+    if (index == 1) return Colors.grey.shade400; // Silver
+    if (index == 2) return Colors.brown.shade400; // Bronze
+    return Colors.white10;
   }
 }
