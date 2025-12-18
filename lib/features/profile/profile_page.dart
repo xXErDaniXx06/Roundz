@@ -13,6 +13,8 @@ class ProfilePage extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser;
     final DatabaseService db = DatabaseService();
     final AuthService auth = AuthService();
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     if (user == null) {
       return const Center(child: Text("Not logged in"));
@@ -80,26 +82,26 @@ class ProfilePage extends StatelessWidget {
                     children: [
                       CircleAvatar(
                         radius: 50,
-                        backgroundColor: Colors.white10,
+                        backgroundColor: colorScheme.surfaceContainerHighest,
                         backgroundImage:
                             photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
                         child: photoUrl.isEmpty
-                            ? const Icon(Icons.person,
-                                size: 50, color: Colors.white)
+                            ? Icon(Icons.person,
+                                size: 50, color: colorScheme.onSurfaceVariant)
                             : null,
                       ),
                       const SizedBox(height: 16),
                       Text(
                         username,
-                        style: const TextStyle(
-                          fontSize: 24,
+                        style: textTheme.headlineMedium?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: colorScheme.onSurface,
                         ),
                       ),
                       Text(
                         '$friendsCount Friends',
-                        style: const TextStyle(color: Colors.grey),
+                        style: textTheme.bodyMedium
+                            ?.copyWith(color: colorScheme.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -176,11 +178,14 @@ class _ControlKey extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Column(
       children: [
         Text(label,
-            style: const TextStyle(
-                color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+            style: TextStyle(
+                color: colorScheme.onSurfaceVariant,
+                fontSize: 12,
+                fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         Row(
           children: [
@@ -188,15 +193,16 @@ class _ControlKey extends StatelessWidget {
               onPressed: onDecrement,
               icon: const Icon(Icons.remove, size: 18),
               style: IconButton.styleFrom(
-                  backgroundColor: Colors.white10,
-                  foregroundColor: Colors.white),
+                  backgroundColor: colorScheme.surfaceContainerHighest,
+                  foregroundColor: colorScheme.onSurfaceVariant),
             ),
             const SizedBox(width: 8),
             IconButton.filled(
               onPressed: onIncrement,
               icon: const Icon(Icons.add, size: 18),
               style: IconButton.styleFrom(
-                  backgroundColor: Colors.white, foregroundColor: Colors.black),
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary),
             ),
           ],
         )
@@ -215,39 +221,50 @@ class _DoubleStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.2)),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(title,
-              style: const TextStyle(
-                  color: Colors.white54, fontSize: 10, letterSpacing: 1.2)),
+              style: TextStyle(
+                  color: colorScheme.onSurfaceVariant,
+                  fontSize: 10,
+                  letterSpacing: 1.2)),
           const Spacer(),
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text('$annual',
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 32, // Reduced from 36
+                style: TextStyle(
+                    color: colorScheme.onSurface,
+                    fontSize: 32,
                     fontWeight: FontWeight.w300)),
           ),
-          const Text('THIS YEAR',
-              style: TextStyle(color: Colors.white24, fontSize: 8)),
-          const Divider(
-              color: Colors.white10, indent: 20, endIndent: 20, height: 16),
+          Text('THIS YEAR',
+              style: TextStyle(
+                  color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+                  fontSize: 8)),
+          Divider(
+              color: colorScheme.outlineVariant.withOpacity(0.2),
+              indent: 20,
+              endIndent: 20,
+              height: 16),
           Text('$total',
-              style: const TextStyle(
-                  color: Colors.white70,
+              style: TextStyle(
+                  color: colorScheme.onSurface.withOpacity(0.8),
                   fontSize: 16,
                   fontWeight: FontWeight.bold)),
-          const Text('TOTAL',
-              style: TextStyle(color: Colors.white24, fontSize: 8)),
+          Text('TOTAL',
+              style: TextStyle(
+                  color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+                  fontSize: 8)),
           const Spacer(),
         ],
       ),

@@ -205,4 +205,12 @@ class DatabaseService {
       return [];
     }
   }
+
+  // Check if username is already taken
+  Future<bool> isUsernameTaken(String username) async {
+    final querySnapshot =
+        await _users.where('username', isEqualTo: username).limit(1).get();
+
+    return querySnapshot.docs.isNotEmpty;
+  }
 }

@@ -45,4 +45,35 @@ class AuthService {
   Future<void> signOut() async {
     await _auth.signOut();
   }
+
+  // Re-authenticate user
+  Future<void> reauthenticateUser(String password) async {
+    User? user = _auth.currentUser;
+    if (user == null) throw Exception("No user logged in");
+
+    AuthCredential credential = EmailAuthProvider.credential(
+      email: user.email!,
+      password: password,
+    );
+
+    try {
+      await user.reauthenticateWithCredential(credential);
+    } catch (e) {
+      debugPrint("Error re-authenticating: $e");
+      rethrow;
+    }
+  }
+
+  // Update Password
+  Future<void> updatePassword(String newPassword) async {
+    User? user = _auth.currentUser;
+    if (user == null) throw Exception("No user logged in");
+
+    try {
+      await user.updatePassword(newPassword);
+    } catch (e) {
+      debugPrint("Error updating password: $e");
+      rethrow;
+    }
+  }
 }
