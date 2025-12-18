@@ -72,93 +72,115 @@ class ProfilePage extends StatelessWidget {
           final String username = data['username'] ?? 'User';
           final String photoUrl = data['photoUrl'] ?? '';
 
-          return Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
+          return CustomScrollView(
+            slivers: [
+              // Profile Header & Control Panel
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundColor: colorScheme.surfaceContainerHighest,
-                        backgroundImage:
-                            photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
-                        child: photoUrl.isEmpty
-                            ? Icon(Icons.person,
-                                size: 50, color: colorScheme.onSurfaceVariant)
-                            : null,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        username,
-                        style: textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onSurface,
+                      Center(
+                        child: Column(
+                          children: [
+                            CircleAvatar(
+                              radius: 50,
+                              backgroundColor:
+                                  colorScheme.surfaceContainerHighest,
+                              backgroundImage: photoUrl.isNotEmpty
+                                  ? NetworkImage(photoUrl)
+                                  : null,
+                              child: photoUrl.isEmpty
+                                  ? Icon(Icons.person,
+                                      size: 50,
+                                      color: colorScheme.onSurfaceVariant)
+                                  : null,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              username,
+                              style: textTheme.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onSurface,
+                              ),
+                            ),
+                            Text(
+                              '$friendsCount Friends',
+                              style: textTheme.bodyMedium?.copyWith(
+                                  color: colorScheme.onSurfaceVariant),
+                            ),
+                          ],
                         ),
                       ),
-                      Text(
-                        '$friendsCount Friends',
-                        style: textTheme.bodyMedium
-                            ?.copyWith(color: colorScheme.onSurfaceVariant),
+                      const SizedBox(height: 32),
+                      // Control Panel (Add/Remove)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _ControlKey(
+                            label: "FIESTA",
+                            onIncrement: () =>
+                                db.incrementStat(user.uid, 'parties'),
+                            onDecrement: () =>
+                                db.decrementStat(user.uid, 'parties'),
+                          ),
+                          _ControlKey(
+                            label: "CUBATA",
+                            onIncrement: () =>
+                                db.incrementStat(user.uid, 'cubatas'),
+                            onDecrement: () =>
+                                db.decrementStat(user.uid, 'cubatas'),
+                          ),
+                          _ControlKey(
+                            label: "CHUPITO",
+                            onIncrement: () =>
+                                db.incrementStat(user.uid, 'chupitos'),
+                            onDecrement: () =>
+                                db.decrementStat(user.uid, 'chupitos'),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 24),
                     ],
                   ),
                 ),
-                const SizedBox(height: 32),
+              ),
 
-                // Control Panel (Add/Remove)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _ControlKey(
-                      label: "FIESTA",
-                      onIncrement: () => db.incrementStat(user.uid, 'parties'),
-                      onDecrement: () => db.decrementStat(user.uid, 'parties'),
-                    ),
-                    _ControlKey(
-                      label: "CUBATA",
-                      onIncrement: () => db.incrementStat(user.uid, 'cubatas'),
-                      onDecrement: () => db.decrementStat(user.uid, 'cubatas'),
-                    ),
-                    _ControlKey(
-                      label: "CHUPITO",
-                      onIncrement: () => db.incrementStat(user.uid, 'chupitos'),
-                      onDecrement: () => db.decrementStat(user.uid, 'chupitos'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-
-                // Stats Display (Annual + Global)
-                Expanded(
-                  child: GridView.count(
+              // Stats Grid
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
                     mainAxisSpacing: 12,
                     crossAxisSpacing: 12,
                     childAspectRatio: 0.7,
-                    children: [
-                      _DoubleStatCard(
-                        title: "FIESTAS",
-                        annual: partiesYear,
-                        total: parties,
-                      ),
-                      _DoubleStatCard(
-                        title: "CUBATAS",
-                        annual: cubatasYear,
-                        total: cubatas,
-                      ),
-                      _DoubleStatCard(
-                        title: "CHUPITOS",
-                        annual: chupitosYear,
-                        total: chupitos,
-                      ),
-                    ],
                   ),
+                  delegate: SliverChildListDelegate([
+                    _DoubleStatCard(
+                      title: "FIESTAS",
+                      annual: partiesYear,
+                      total: parties,
+                    ),
+                    _DoubleStatCard(
+                      title: "CUBATAS",
+                      annual: cubatasYear,
+                      total: cubatas,
+                    ),
+                    _DoubleStatCard(
+                      title: "CHUPITOS",
+                      annual: chupitosYear,
+                      total: chupitos,
+                    ),
+                  ]),
                 ),
-              ],
-            ),
+              ),
+              // Extra space at bottom
+              const SliverToBoxAdapter(
+                child: SizedBox(height: 32),
+              ),
+            ],
           );
         },
       ),
