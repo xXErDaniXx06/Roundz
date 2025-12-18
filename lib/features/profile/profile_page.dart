@@ -38,8 +38,27 @@ class ProfilePage extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await auth.signOut();
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text("Cerrar Sesión"),
+                  content: const Text("¿Estás seguro de que quieres salir?"),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text("Cancelar"),
+                    ),
+                    TextButton(
+                      onPressed: () async {
+                        Navigator.pop(context);
+                        await auth.signOut();
+                      },
+                      child: const Text("Cerrar Sesión"),
+                    ),
+                  ],
+                ),
+              );
             },
           ),
           IconButton(
