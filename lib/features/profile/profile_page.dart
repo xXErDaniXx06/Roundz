@@ -59,6 +59,13 @@ class ProfilePage extends StatelessWidget {
           final int parties = stats['parties'] ?? 0;
           final int cubatas = stats['cubatas'] ?? 0;
           final int chupitos = stats['chupitos'] ?? 0;
+
+          final annualStats =
+              data['annual_stats'] as Map<String, dynamic>? ?? {};
+          final int partiesYear = annualStats['parties'] ?? 0;
+          final int cubatasYear = annualStats['cubatas'] ?? 0;
+          final int chupitosYear = annualStats['chupitos'] ?? 0;
+
           final int friendsCount = data['friendsCount'] ?? 0;
           final String username = data['username'] ?? 'User';
           final String photoUrl = data['photoUrl'] ?? '';
@@ -99,37 +106,51 @@ class ProfilePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 32),
 
-                // Stats Grid
+                // Control Panel (Add/Remove)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _ControlKey(
+                      label: "FIESTA",
+                      onIncrement: () => db.incrementStat(user.uid, 'parties'),
+                      onDecrement: () => db.decrementStat(user.uid, 'parties'),
+                    ),
+                    _ControlKey(
+                      label: "CUBATA",
+                      onIncrement: () => db.incrementStat(user.uid, 'cubatas'),
+                      onDecrement: () => db.decrementStat(user.uid, 'cubatas'),
+                    ),
+                    _ControlKey(
+                      label: "CHUPITO",
+                      onIncrement: () => db.incrementStat(user.uid, 'chupitos'),
+                      onDecrement: () => db.decrementStat(user.uid, 'chupitos'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // Stats Display (Annual + Global)
                 Expanded(
                   child: GridView.count(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 16,
-                    crossAxisSpacing: 16,
-                    childAspectRatio: 0.85,
+                    crossAxisCount: 3,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 0.7,
                     children: [
-                      _StatCard(
-                        label: 'FIESTAS',
-                        value: parties,
-                        onIncrement: () =>
-                            db.incrementStat(user.uid, 'parties'),
-                        onDecrement: () =>
-                            db.decrementStat(user.uid, 'parties'),
+                      _DoubleStatCard(
+                        title: "FIESTAS",
+                        annual: partiesYear,
+                        total: parties,
                       ),
-                      _StatCard(
-                        label: 'CUBATAS',
-                        value: cubatas,
-                        onIncrement: () =>
-                            db.incrementStat(user.uid, 'cubatas'),
-                        onDecrement: () =>
-                            db.decrementStat(user.uid, 'cubatas'),
+                      _DoubleStatCard(
+                        title: "CUBATAS",
+                        annual: cubatasYear,
+                        total: cubatas,
                       ),
-                      _StatCard(
-                        label: 'CHUPITOS',
-                        value: chupitos,
-                        onIncrement: () =>
-                            db.incrementStat(user.uid, 'chupitos'),
-                        onDecrement: () =>
-                            db.decrementStat(user.uid, 'chupitos'),
+                      _DoubleStatCard(
+                        title: "CHUPITOS",
+                        annual: chupitosYear,
+                        total: chupitos,
                       ),
                     ],
                   ),
@@ -143,22 +164,59 @@ class ProfilePage extends StatelessWidget {
   }
 }
 
-class _StatCard extends StatelessWidget {
+class _ControlKey extends StatelessWidget {
   final String label;
-  final int value;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
 
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.onIncrement,
-    required this.onDecrement,
-  });
+  const _ControlKey(
+      {required this.label,
+      required this.onIncrement,
+      required this.onDecrement});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(label,
+            style: const TextStyle(
+                color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            IconButton.filled(
+              onPressed: onDecrement,
+              icon: const Icon(Icons.remove, size: 18),
+              style: IconButton.styleFrom(
+                  backgroundColor: Colors.white10,
+                  foregroundColor: Colors.white),
+            ),
+            const SizedBox(width: 8),
+            IconButton.filled(
+              onPressed: onIncrement,
+              icon: const Icon(Icons.add, size: 18),
+              style: IconButton.styleFrom(
+                  backgroundColor: Colors.white, foregroundColor: Colors.black),
+            ),
+          ],
+        )
+      ],
+    );
+  }
+}
+
+class _DoubleStatCard extends StatelessWidget {
+  final String title;
+  final int annual;
+  final int total;
+
+  const _DoubleStatCard(
+      {required this.title, required this.annual, required this.total});
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(16),
@@ -167,39 +225,30 @@ class _StatCard extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 14,
-              letterSpacing: 1.2,
-            ),
+          Text(title,
+              style: const TextStyle(
+                  color: Colors.white54, fontSize: 10, letterSpacing: 1.2)),
+          const Spacer(),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text('$annual',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 32, // Reduced from 36
+                    fontWeight: FontWeight.w300)),
           ),
-          const SizedBox(height: 8),
-          Text(
-            '$value',
-            style: const TextStyle(
-              fontSize: 48,
-              fontWeight: FontWeight.w200,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconButton(
-                onPressed: onDecrement,
-                icon: const Icon(Icons.remove_circle_outline,
-                    size: 28, color: Colors.white54),
-              ),
-              IconButton(
-                onPressed: onIncrement,
-                icon: const Icon(Icons.add_circle_outline,
-                    size: 28, color: Colors.white70),
-              ),
-            ],
-          ),
+          const Text('THIS YEAR',
+              style: TextStyle(color: Colors.white24, fontSize: 8)),
+          const Divider(
+              color: Colors.white10, indent: 20, endIndent: 20, height: 16),
+          Text('$total',
+              style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold)),
+          const Text('TOTAL',
+              style: TextStyle(color: Colors.white24, fontSize: 8)),
+          const Spacer(),
         ],
       ),
     );

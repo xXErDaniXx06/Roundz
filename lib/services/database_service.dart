@@ -27,6 +27,12 @@ class DatabaseService {
           'cubatas': 0,
           'chupitos': 0,
         },
+        'annual_stats': {
+          'year': DateTime.now().year,
+          'parties': 0,
+          'cubatas': 0,
+          'chupitos': 0,
+        },
         'friends': [], // List of UIDs
       });
     }
@@ -37,19 +43,62 @@ class DatabaseService {
     return _users.doc(uid).snapshots();
   }
 
-  // Increment Stat (Only for self)
+  // Increment Stat (Global + Annual with Reset)
   Future<void> incrementStat(String uid, String statName) async {
-    // statName: 'parties', 'cubatas', 'chupitos'
+    final docRef = _users.doc(uid);
     try {
-      await _users.doc(uid).update({
-        'stats.$statName': FieldValue.increment(1),
+      await _db.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) return;
+
+        final data = snapshot.data() as Map<String, dynamic>;
+        final currentYear = DateTime.now().year;
+
+        // Check/Init Annual Stats
+        var annualStats = data['annual_stats'] as Map<String, dynamic>? ??
+            {'year': currentYear, 'parties': 0, 'cubatas': 0, 'chupitos': 0};
+
+        final savedYear = annualStats['year'] ?? currentYear;
+
+        if (savedYear != currentYear) {
+          // New Year: Reset annual stats
+          annualStats = {
+            'year': currentYear,
+            'parties': 0,
+            'cubatas': 0,
+            'chupitos': 0,
+          };
+        }
+
+        // Increment Global
+
+        // Note: We can use FieldValue.increment for simple fields, but since we are in a transaction reading data,
+        // we can just calculate the new value to be safe or mix logic.
+        // For simplicity in transaction, we update the whole map or specific fields.
+        // Let's use direct map updates to ensure consistency with the read snapshot.
+
+        // However, mixing FieldValue.increment with explicit set in transaction is tricky if partial.
+        // Simplest: Calculate new values.
+
+        // 1. Global
+        // We do strictly want to increment, so we can use the `update` command inside transaction.
+
+        transaction.update(docRef, {
+          'stats.$statName': FieldValue.increment(1),
+          // We must write the ENTIRE annual_stats map if it was reset, OR just update the field if year is same.
+          // To be safe and handle the reset atomicly:
+          'annual_stats': {
+            ...annualStats,
+            statName: (annualStats[statName] ?? 0) + 1,
+          }
+        });
       });
     } catch (e) {
       debugPrint('Error updating stat: $e');
     }
   }
 
-  // Decrement Stat (Only for self, prevent negative)
+  // Decrement Stat (Global + Annual with Reset, prevent negative)
   Future<void> decrementStat(String uid, String statName) async {
     final docRef = _users.doc(uid);
     try {
@@ -58,12 +107,49 @@ class DatabaseService {
         if (!snapshot.exists) return;
 
         final data = snapshot.data() as Map<String, dynamic>;
-        final stats = data['stats'] as Map<String, dynamic>? ?? {};
-        final currentValue = stats[statName] ?? 0;
+        final currentYear = DateTime.now().year;
 
-        if (currentValue > 0) {
+        // Global Check
+        final stats = data['stats'] as Map<String, dynamic>? ?? {};
+        final currentGlobal = stats[statName] ?? 0;
+
+        // Annual Check
+        var annualStats = data['annual_stats'] as Map<String, dynamic>? ??
+            {'year': currentYear, 'parties': 0, 'cubatas': 0, 'chupitos': 0};
+        final savedYear = annualStats['year'] ?? currentYear;
+
+        if (savedYear != currentYear) {
+          // Reset on new year (even on decrement? Yes, to synchronize)
+          annualStats = {
+            'year': currentYear,
+            'parties': 0,
+            'cubatas': 0,
+            'chupitos': 0,
+          };
+        }
+
+        final currentAnnual = annualStats[statName] ?? 0;
+
+        // Only decrement if > 0
+        if (currentGlobal > 0 || currentAnnual > 0) {
+          // If Annual was just reset, it is 0, so we can't decrement it.
+          // But Global might be > 0.
+          // Requirement: "buttons ... of the two counters".
+          // Implies we probably want to decrement them together?
+          // Or does the user mean separate actions?
+          // Request: "separate the buttons ... FROM the two counters".
+          // Implicitly: ONE set of buttons affects BOTH.
+
+          // Logic:
+          // Global should decrement if > 0.
+          // Annual should decrement if > 0.
+
           transaction.update(docRef, {
-            'stats.$statName': FieldValue.increment(-1),
+            if (currentGlobal > 0) 'stats.$statName': FieldValue.increment(-1),
+            'annual_stats': {
+              ...annualStats,
+              statName: (currentAnnual > 0) ? currentAnnual - 1 : 0,
+            }
           });
         }
       });
