@@ -54,53 +54,29 @@ class NotificationsPage extends StatelessWidget {
             itemCount: requests.length,
             itemBuilder: (context, index) {
               final request = requests[index];
-              final data = request.data() as Map<String, dynamic>;
-              final requesterUid = request.id; // Or data['from']
-              final username = data['username'] ?? 'User';
-              final photoUrl = data['photoUrl'] ?? '';
+              final requesterUid = request['fromUid'];
+              final requesterName = request['fromName'];
 
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundImage:
-                            photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
-                        child:
-                            photoUrl.isEmpty ? const Icon(Icons.person) : null,
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(username,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold, fontSize: 16)),
-                            const Text("Sent you a friend request",
-                                style: TextStyle(
-                                    color: Colors.grey, fontSize: 12)),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => db.acceptFriendRequest(
-                            currentUser.uid, requesterUid),
-                        icon: const Icon(Icons.check_circle,
-                            color: Colors.green, size: 32),
-                        tooltip: "Accept",
-                      ),
-                      IconButton(
-                        onPressed: () => db.declineFriendRequest(
-                            currentUser.uid, requesterUid),
-                        icon: const Icon(Icons.cancel,
-                            color: Colors.red, size: 32),
-                        tooltip: "Decline",
-                      ),
-                    ],
-                  ),
+              return ListTile(
+                title: Text("$requesterName sent you a friend request"),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      onPressed: () => db.acceptFriendRequest(
+                          currentUser.uid, request.id, requesterUid),
+                      icon: const Icon(Icons.check_circle,
+                          color: Colors.green, size: 32),
+                      tooltip: "Accept",
+                    ),
+                    IconButton(
+                      onPressed: () =>
+                          db.declineFriendRequest(currentUser.uid, request.id),
+                      icon:
+                          const Icon(Icons.cancel, color: Colors.red, size: 32),
+                      tooltip: "Decline",
+                    ),
+                  ],
                 ),
               );
             },

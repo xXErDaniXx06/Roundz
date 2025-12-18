@@ -11,17 +11,15 @@ class ChatService {
   }
 
   // Send Message
-  Future<void> sendMessage(
-      String senderId, String receiverId, String message) async {
+  Future<void> sendMessage(String chatId, String senderId, String message,
+      {bool isGroup = false}) async {
     if (message.trim().isEmpty) return;
 
-    final String chatRoomId = getChatRoomId(senderId, receiverId);
     final Timestamp timestamp = Timestamp.now();
 
     // Message Data
     Map<String, dynamic> messageData = {
       'senderId': senderId,
-      'receiverId': receiverId,
       'message': message,
       'timestamp': timestamp,
     };
@@ -29,24 +27,25 @@ class ChatService {
     // 1. Add message to subcollection
     await _db
         .collection('chats')
-        .doc(chatRoomId)
+        .doc(chatId)
         .collection('messages')
         .add(messageData);
 
-    // 2. Update Chat Metadata (for recent chats list, optional but good practice)
-    await _db.collection('chats').doc(chatRoomId).set({
-      'participants': [senderId, receiverId],
-      'lastMessage': message,
-      'timestamp': timestamp,
+    // 2. Update Chat Metadata (recent message)
+    await _db.collection('chats').doc(chatId).set({
+      'recentMessage': message,
+      'recentMessageSender': senderId,
+      'recentMessageTime': timestamp,
+      if (!isGroup)
+        'participants': chatId.split('_'), // Only for DM logic if needed
     }, SetOptions(merge: true));
   }
 
   // Get Messages Stream
-  Stream<QuerySnapshot> getMessages(String uid1, String uid2) {
-    String chatRoomId = getChatRoomId(uid1, uid2);
+  Stream<QuerySnapshot> getMessages(String chatId) {
     return _db
         .collection('chats')
-        .doc(chatRoomId)
+        .doc(chatId)
         .collection('messages')
         .orderBy('timestamp', descending: false)
         .snapshots();

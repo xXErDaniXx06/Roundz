@@ -2,17 +2,23 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../services/chat_service.dart';
+import '../../services/database_service.dart';
 
 class ChatRoomPage extends StatefulWidget {
-  final String receiverUserEmail; // username
-  final String receiverUserID;
+  final String receiverUserEmail; // Name/Title
+  final String receiverUserID; // For DM: UserID. For Group: '' or irrelevant
   final String receiverUserPhotoUrl;
+  final String?
+      chatId; // If provided, uses this ID (Group). If null, calculates DM ID.
+  final bool isGroup;
 
   const ChatRoomPage({
     super.key,
     required this.receiverUserEmail,
     required this.receiverUserID,
     required this.receiverUserPhotoUrl,
+    this.chatId,
+    this.isGroup = false,
   });
 
   @override
@@ -25,12 +31,26 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final ScrollController _scrollController = ScrollController();
 
+  late String currentChatId;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.chatId != null) {
+      currentChatId = widget.chatId!;
+    } else {
+      currentChatId = _chatService.getChatRoomId(
+          _auth.currentUser!.uid, widget.receiverUserID);
+    }
+  }
+
   void sendMessage() async {
     if (_messageController.text.isNotEmpty) {
       await _chatService.sendMessage(
+        currentChatId,
         _auth.currentUser!.uid,
-        widget.receiverUserID,
         _messageController.text,
+        isGroup: widget.isGroup,
       );
       _messageController.clear();
       _scrollDown();
@@ -59,7 +79,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                   ? NetworkImage(widget.receiverUserPhotoUrl)
                   : null,
               child: widget.receiverUserPhotoUrl.isEmpty
-                  ? const Icon(Icons.person)
+                  ? Icon(widget.isGroup ? Icons.group : Icons.person)
                   : null,
             ),
             const SizedBox(width: 12),
@@ -71,6 +91,15 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
         ),
         backgroundColor: Colors.transparent, // Seamless look
         scrolledUnderElevation: 0,
+        actions: [
+          if (widget.isGroup)
+            IconButton(
+              icon: const Icon(Icons.person_add),
+              onPressed: () {
+                _showInviteDialog();
+              },
+            ),
+        ],
       ),
       body: Column(
         children: [
@@ -86,10 +115,71 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     );
   }
 
+  void _showInviteDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Invite Friend"),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: DatabaseService().getFriends(_auth.currentUser!.uid),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final friends = snapshot.data!;
+              if (friends.isEmpty) return const Text("No friends to invite");
+
+              return ListView.builder(
+                shrinkWrap: true,
+                itemCount: friends.length,
+                itemBuilder: (context, index) {
+                  final friend = friends[index];
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundImage: friend['photoUrl'] != null &&
+                              friend['photoUrl'].isNotEmpty
+                          ? NetworkImage(friend['photoUrl'])
+                          : null,
+                      child: friend['photoUrl'] == null ||
+                              friend['photoUrl'].isEmpty
+                          ? const Icon(Icons.person)
+                          : null,
+                    ),
+                    title: Text(friend['username'] ?? 'User'),
+                    trailing: const Icon(Icons.send),
+                    onTap: () async {
+                      await DatabaseService().sendGroupInvite(
+                          currentChatId,
+                          widget
+                              .receiverUserEmail, // Group Name (passed as title)
+                          _auth.currentUser!.uid,
+                          friend['uid']);
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Invite sent!")));
+                      }
+                    },
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Close"))
+        ],
+      ),
+    );
+  }
+
   Widget _buildMessageList() {
     return StreamBuilder(
-      stream: _chatService.getMessages(
-          _auth.currentUser!.uid, widget.receiverUserID),
+      stream: _chatService.getMessages(currentChatId),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return const Center(child: Text('Error loading messages'));

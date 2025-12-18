@@ -185,11 +185,11 @@ class DatabaseService {
 
   // Accept Friend Request (Transaction for consistency)
   Future<void> acceptFriendRequest(
-      String currentUid, String requesterUid) async {
+      String currentUid, String requestId, String requesterUid) async {
     final currentRef = _users.doc(currentUid);
     final requesterRef = _users.doc(requesterUid);
     final requestRef =
-        _users.doc(currentUid).collection('friend_requests').doc(requesterUid);
+        _users.doc(currentUid).collection('friend_requests').doc(requestId);
 
     try {
       await _db.runTransaction((transaction) async {
@@ -231,17 +231,16 @@ class DatabaseService {
     }
   }
 
-  // Decline/Cancel Friend Request
-  Future<void> declineFriendRequest(
-      String currentUid, String requesterUid) async {
+  // Decline/Cancel Friend Request (or Group Invite)
+  Future<void> declineFriendRequest(String currentUid, String requestId) async {
     try {
       await _users
           .doc(currentUid)
           .collection('friend_requests')
-          .doc(requesterUid)
+          .doc(requestId)
           .delete();
     } catch (e) {
-      debugPrint('Error declining friend request: $e');
+      debugPrint('Error declining request: $e');
     }
   }
 
@@ -313,5 +312,78 @@ class DatabaseService {
         await _users.where('username', isEqualTo: username).limit(1).get();
 
     return querySnapshot.docs.isNotEmpty;
+  }
+
+  // --- Group Logic ---
+
+  // Create Group
+  Future<void> createGroup(String groupName, String creatorUid) async {
+    final groupRef = _db.collection('chats').doc();
+    await groupRef.set({
+      'name': groupName,
+      'members': [creatorUid],
+      'admin': creatorUid,
+      'recentMessage': '',
+      'recentMessageSender': '',
+      'recentMessageTime': FieldValue.serverTimestamp(),
+      'type': 'group',
+    });
+  }
+
+  // Get User Groups Stream
+  Stream<QuerySnapshot> getGroups(String uid) {
+    return _db
+        .collection('chats')
+        .where('members', arrayContains: uid)
+        .where('type', isEqualTo: 'group')
+        .snapshots();
+  }
+
+  // Send Group Invite
+  Future<void> sendGroupInvite(String groupId, String groupName,
+      String inviterUid, String targetUid) async {
+    // Check if already in group (optional, but good UX)
+    final groupDoc = await _db.collection('chats').doc(groupId).get();
+    if (!groupDoc.exists) return;
+    final members = List<String>.from(groupDoc['members'] ?? []);
+    if (members.contains(targetUid)) return; // Already a member
+
+    // Fetch inviter info for display
+    final inviterDoc = await _users.doc(inviterUid).get();
+    final inviterData = inviterDoc.data() as Map<String, dynamic>;
+
+    await _users
+        .doc(targetUid)
+        .collection('friend_requests') // Re-using collection, new 'type'
+        .add({
+      'type': 'group_invite',
+      'groupId': groupId,
+      'groupName': groupName,
+      'from': inviterUid,
+      'username': inviterData['username'] ?? 'Unknown',
+      'photoUrl': inviterData['photoUrl'] ?? '',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // Accept Group Invite
+  Future<void> acceptGroupInvite(
+      String uid, String requestId, String groupId) async {
+    try {
+      await _db.runTransaction((transaction) async {
+        // 1. Add user to group members
+        final groupRef = _db.collection('chats').doc(groupId);
+        transaction.update(groupRef, {
+          'members': FieldValue.arrayUnion([uid])
+        });
+
+        // 2. Delete the invite
+        final requestRef =
+            _users.doc(uid).collection('friend_requests').doc(requestId);
+        transaction.delete(requestRef);
+      });
+    } catch (e) {
+      debugPrint("Error accepting group invite: $e");
+    }
   }
 }
