@@ -206,6 +206,38 @@ class DatabaseService {
     }
   }
 
+  // Get Friends Data
+  Future<List<Map<String, dynamic>>> getFriends(String uid) async {
+    try {
+      final userDoc = await _users.doc(uid).get();
+      if (!userDoc.exists) return [];
+
+      final data = userDoc.data() as Map<String, dynamic>;
+      final List<dynamic> friendsUids = data['friends'] ?? [];
+
+      if (friendsUids.isEmpty) return [];
+
+      // Fetch all friend documents
+      // Note: "whereIn" is limited to 10 items. For simplicity/robustness with small friend lists:
+      // We can do individual fetches or chunked query.
+      // For now, let's assuming <10 friends or do Future.wait.
+      // Future.wait is consistent for any number (up to reasonably limits).
+
+      List<Future<DocumentSnapshot>> futures =
+          friendsUids.map((fUid) => _users.doc(fUid as String).get()).toList();
+
+      final snapshots = await Future.wait(futures);
+
+      return snapshots
+          .where((doc) => doc.exists)
+          .map((doc) => doc.data() as Map<String, dynamic>)
+          .toList();
+    } catch (e) {
+      debugPrint("Error fetching friends: $e");
+      return [];
+    }
+  }
+
   // Check if username is already taken
   Future<bool> isUsernameTaken(String username) async {
     final querySnapshot =

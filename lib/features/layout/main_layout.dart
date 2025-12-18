@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../profile/profile_page.dart';
 import '../ranking/ranking_page.dart';
 import '../search/search_page.dart';
+import '../chat/chat_list_page.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -14,6 +15,7 @@ class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
   final List<Widget> _pages = [
     const ProfilePage(),
+    const ChatListPage(),
     const SearchPage(),
     const RankingPage(),
   ];
@@ -26,6 +28,7 @@ class _MainLayoutState extends State<MainLayout> {
         backgroundColor: Colors.black,
         selectedItemColor: Colors.white,
         unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed, // Needed for 4+ items
         currentIndex: _currentIndex,
         onTap: (index) {
           setState(() {
@@ -36,6 +39,10 @@ class _MainLayoutState extends State<MainLayout> {
           BottomNavigationBarItem(
             icon: Icon(Icons.person),
             label: 'Profile',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.chat_bubble_outline),
+            label: 'Chat',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.search),
