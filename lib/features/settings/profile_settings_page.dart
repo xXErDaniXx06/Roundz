@@ -117,7 +117,10 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user!.uid)
-          .update({'username': _newUsername});
+          .update({
+        'username': _newUsername,
+        'searchKey': _newUsername.toLowerCase(),
+      });
 
       setState(() => _currentUsername = _newUsername);
       if (mounted) {

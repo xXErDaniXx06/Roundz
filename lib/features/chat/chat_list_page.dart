@@ -77,6 +77,7 @@ class _ChatListPageState extends State<ChatListPage> {
                       builder: (context) => ChatRoomPage(
                         receiverUserEmail: username,
                         receiverUserID: uid,
+                        receiverUserPhotoUrl: photoUrl,
                       ),
                     ),
                   );

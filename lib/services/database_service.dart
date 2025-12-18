@@ -18,6 +18,7 @@ class DatabaseService {
         'uid': user.uid,
         'email': user.email,
         'username': username,
+        'searchKey': username.toLowerCase(), // For case-insensitive search
         'createdAt': FieldValue.serverTimestamp(),
         'friendsCount': 0,
         // Public stats (none for now, but structure ready)
@@ -158,42 +159,110 @@ class DatabaseService {
     }
   }
 
-  // Add Friend (Simplistic: A adds B -> B is in A's friend list)
-  // Logic: For B to see A's stats, A must add B (or strict mutual).
-  // Request: "Stats visible only to added friends".
-  // Interpretation: If I (A) add You (B), then You (B) are my friend.
-  // So You (B) can see My (A) stats.
-  Future<void> addFriend(String currentUid, String targetUid) async {
+  // Send Friend Request
+  Future<void> sendFriendRequest(String currentUid, String targetUid) async {
     try {
-      await _users.doc(currentUid).update({
-        'friends': FieldValue.arrayUnion([targetUid]),
-        'friendsCount': FieldValue.increment(1),
+      // 1. Get current user info to store in request (optimization for display)
+      final currentUserDoc = await _users.doc(currentUid).get();
+      final userData = currentUserDoc.data() as Map<String, dynamic>;
+
+      // 2. Create Request Document in Target's subcollection
+      // Path: users/{targetUid}/friend_requests/{currentUid}
+      await _users
+          .doc(targetUid)
+          .collection('friend_requests')
+          .doc(currentUid)
+          .set({
+        'from': currentUid,
+        'username': userData['username'] ?? 'Unknown',
+        'photoUrl': userData['photoUrl'] ?? '',
+        'timestamp': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      debugPrint('Error adding friend: $e');
+      debugPrint('Error sending friend request: $e');
     }
   }
 
-  Future<void> removeFriend(String currentUid, String targetUid) async {
+  // Accept Friend Request (Transaction for consistency)
+  Future<void> acceptFriendRequest(
+      String currentUid, String requesterUid) async {
+    final currentRef = _users.doc(currentUid);
+    final requesterRef = _users.doc(requesterUid);
+    final requestRef =
+        _users.doc(currentUid).collection('friend_requests').doc(requesterUid);
+
     try {
-      await _users.doc(currentUid).update({
-        'friends': FieldValue.arrayRemove([targetUid]),
-        'friendsCount': FieldValue.increment(-1),
+      await _db.runTransaction((transaction) async {
+        final currentSnapshot = await transaction.get(currentRef);
+        final requesterSnapshot = await transaction.get(requesterRef);
+
+        if (!currentSnapshot.exists || !requesterSnapshot.exists) {
+          throw Exception("User data not found");
+        }
+
+        final currentData = currentSnapshot.data() as Map<String, dynamic>;
+        final requesterData = requesterSnapshot.data() as Map<String, dynamic>;
+
+        final currentFriends = List<String>.from(currentData['friends'] ?? []);
+        final requesterFriends =
+            List<String>.from(requesterData['friends'] ?? []);
+
+        // Update Current User (only if not already friends)
+        if (!currentFriends.contains(requesterUid)) {
+          transaction.update(currentRef, {
+            'friends': FieldValue.arrayUnion([requesterUid]),
+            'friendsCount': FieldValue.increment(1),
+          });
+        }
+
+        // Update Requester (only if not already friends)
+        if (!requesterFriends.contains(currentUid)) {
+          transaction.update(requesterRef, {
+            'friends': FieldValue.arrayUnion([currentUid]),
+            'friendsCount': FieldValue.increment(1),
+          });
+        }
+
+        // Always delete the request
+        transaction.delete(requestRef);
       });
     } catch (e) {
-      debugPrint('Error removing friend: $e');
+      debugPrint('Error accepting friend request: $e');
     }
+  }
+
+  // Decline/Cancel Friend Request
+  Future<void> declineFriendRequest(
+      String currentUid, String requesterUid) async {
+    try {
+      await _users
+          .doc(currentUid)
+          .collection('friend_requests')
+          .doc(requesterUid)
+          .delete();
+    } catch (e) {
+      debugPrint('Error declining friend request: $e');
+    }
+  }
+
+  // Get Friend Requests Stream
+  Stream<QuerySnapshot> getFriendRequests(String uid) {
+    return _users
+        .doc(uid)
+        .collection('friend_requests')
+        .orderBy('timestamp', descending: true)
+        .snapshots();
   }
 
   // Search Users
   Future<List<Map<String, dynamic>>> searchUsers(String query) async {
-    // Simple search by username (exact match or startAt for better UX later)
-    // Note: Firestore text search is limited. Using simple equality for now.
-    // Or >= query and <= query + '\uf8ff' for prefix.
+    // Case-insensitive search using 'searchKey'
+    final String searchKey = query.toLowerCase();
+
     try {
       final snapshot = await _users
-          .where('username', isGreaterThanOrEqualTo: query)
-          .where('username', isLessThan: '${query}z')
+          .where('searchKey', isGreaterThanOrEqualTo: searchKey)
+          .where('searchKey', isLessThan: '${searchKey}z')
           .limit(10)
           .get();
 

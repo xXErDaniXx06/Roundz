@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
+import '../notifications/notifications_page.dart';
 import '../settings/settings_page.dart';
 
 class ProfilePage extends StatelessWidget {
@@ -10,6 +11,7 @@ class ProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ... (existing variables)
     final user = FirebaseAuth.instance.currentUser;
     final DatabaseService db = DatabaseService();
     final AuthService auth = AuthService();
@@ -24,6 +26,16 @@ class ProfilePage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Roundz'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const NotificationsPage()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
@@ -68,7 +80,10 @@ class ProfilePage extends StatelessWidget {
           final int cubatasYear = annualStats['cubatas'] ?? 0;
           final int chupitosYear = annualStats['chupitos'] ?? 0;
 
-          final int friendsCount = data['friendsCount'] ?? 0;
+          final List<dynamic> friendsList =
+              data['friends'] as List<dynamic>? ?? [];
+          final int friendsCount =
+              friendsList.length; // Use list length for accuracy
           final String username = data['username'] ?? 'User';
           final String photoUrl = data['photoUrl'] ?? '';
 

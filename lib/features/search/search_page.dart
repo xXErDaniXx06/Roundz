@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../../services/database_service.dart';
 
 class SearchPage extends StatefulWidget {
@@ -16,9 +17,31 @@ class _SearchPageState extends State<SearchPage> {
 
   List<Map<String, dynamic>> _searchResults = [];
   bool _isLoading = false;
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      _handleSearch();
+    });
+  }
 
   Future<void> _handleSearch() async {
-    if (_searchController.text.trim().isEmpty) return;
+    if (_searchController.text.trim().isEmpty) {
+      if (mounted) {
+        setState(() {
+          _searchResults = [];
+          _isLoading = false;
+        });
+      }
+      return;
+    }
 
     setState(() {
       _isLoading = true;
@@ -40,15 +63,15 @@ class _SearchPageState extends State<SearchPage> {
     }
   }
 
-  Future<void> _addFriend(String targetUid) async {
+  Future<void> _sendRequest(String targetUid) async {
     final myUid = _auth.currentUser?.uid;
     if (myUid == null) return;
 
-    await _db.addFriend(myUid, targetUid);
+    await _db.sendFriendRequest(myUid, targetUid);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Friend added!')),
+        const SnackBar(content: Text('Friend request sent!')),
       );
     }
   }
@@ -65,6 +88,7 @@ class _SearchPageState extends State<SearchPage> {
             hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
             border: InputBorder.none,
           ),
+          onChanged: _onSearchChanged,
           onSubmitted: (_) => _handleSearch(),
         ),
         actions: [
@@ -85,8 +109,11 @@ class _SearchPageState extends State<SearchPage> {
                   title: Text(user['username'] ?? 'Unknown',
                       style: const TextStyle(color: Colors.white)),
                   trailing: IconButton(
-                    icon: const Icon(Icons.person_add, color: Colors.white70),
-                    onPressed: () => _addFriend(user['uid']),
+                    icon: const Icon(Icons.person_add,
+                        color:
+                            Colors.white70), // Keep same icon or change to send
+                    tooltip: "Send request",
+                    onPressed: () => _sendRequest(user['uid']),
                   ),
                 );
               },

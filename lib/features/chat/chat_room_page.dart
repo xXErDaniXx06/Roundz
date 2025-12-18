@@ -4,14 +4,15 @@ import 'package:flutter/material.dart';
 import '../../services/chat_service.dart';
 
 class ChatRoomPage extends StatefulWidget {
-  final String
-      receiverUserEmail; // or username, using email/username for header
+  final String receiverUserEmail; // username
   final String receiverUserID;
+  final String receiverUserPhotoUrl;
 
   const ChatRoomPage({
     super.key,
     required this.receiverUserEmail,
     required this.receiverUserID,
+    required this.receiverUserPhotoUrl,
   });
 
   @override
@@ -22,6 +23,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   final TextEditingController _messageController = TextEditingController();
   final ChatService _chatService = ChatService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final ScrollController _scrollController = ScrollController();
 
   void sendMessage() async {
     if (_messageController.text.isNotEmpty) {
@@ -31,18 +33,44 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
         _messageController.text,
       );
       _messageController.clear();
+      _scrollDown();
+    }
+  }
+
+  void _scrollDown() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.receiverUserEmail),
-        backgroundColor: colorScheme.surfaceContainerHighest,
-        foregroundColor: colorScheme.onSurface,
+        titleSpacing: 0,
+        title: Row(
+          children: [
+            CircleAvatar(
+              backgroundImage: widget.receiverUserPhotoUrl.isNotEmpty
+                  ? NetworkImage(widget.receiverUserPhotoUrl)
+                  : null,
+              child: widget.receiverUserPhotoUrl.isEmpty
+                  ? const Icon(Icons.person)
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              widget.receiverUserEmail,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.transparent, // Seamless look
+        scrolledUnderElevation: 0,
       ),
       body: Column(
         children: [
@@ -70,8 +98,12 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
           return const Center(child: CircularProgressIndicator());
         }
 
+        // Auto scroll on new message
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollDown());
+
         return ListView(
-          padding: const EdgeInsets.all(8),
+          controller: _scrollController,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           children:
               snapshot.data!.docs.map((doc) => _buildMessageItem(doc)).toList(),
         );
@@ -88,52 +120,80 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
 
     var alignment =
         isCurrentUser ? Alignment.centerRight : Alignment.centerLeft;
-    var color = isCurrentUser
+
+    // Modern Colors
+    var bubbleColor = isCurrentUser
         ? colorScheme.primary
         : colorScheme.surfaceContainerHighest;
     var textColor =
         isCurrentUser ? colorScheme.onPrimary : colorScheme.onSurface;
 
+    // Rounded Corners logic
+    BorderRadius borderRadius = isCurrentUser
+        ? const BorderRadius.only(
+            topLeft: Radius.circular(18),
+            topRight: Radius.circular(18),
+            bottomLeft: Radius.circular(18),
+            bottomRight: Radius.circular(4),
+          )
+        : const BorderRadius.only(
+            topLeft: Radius.circular(18),
+            topRight: Radius.circular(18),
+            bottomLeft: Radius.circular(4),
+            bottomRight: Radius.circular(18),
+          );
+
     return Container(
       alignment: alignment,
       child: Container(
-        padding: const EdgeInsets.all(12),
-        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        constraints:
+            BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
         decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(12),
+          color: bubbleColor,
+          borderRadius: borderRadius,
         ),
         child: Text(
           data['message'],
-          style: TextStyle(color: textColor),
+          style: TextStyle(color: textColor, fontSize: 16),
         ),
       ),
     );
   }
 
   Widget _buildMessageInput() {
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.all(12.0),
+      padding: const EdgeInsets.all(16.0),
       child: Row(
         children: [
           Expanded(
             child: TextField(
               controller: _messageController,
               decoration: InputDecoration(
-                hintText: 'Enter message...',
+                hintText: 'Message...',
                 filled: true,
+                fillColor: colorScheme.surfaceContainerHighest.withOpacity(0.5),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(30),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          IconButton.filled(
-            onPressed: sendMessage,
-            icon: const Icon(Icons.arrow_upward),
+          Container(
+            decoration: BoxDecoration(
+              color: colorScheme.primary,
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              onPressed: sendMessage,
+              icon: Icon(Icons.arrow_upward, color: colorScheme.onPrimary),
+            ),
           )
         ],
       ),
