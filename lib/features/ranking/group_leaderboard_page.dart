@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import '../../services/database_service.dart';
 
 class GroupLeaderboardPage extends StatefulWidget {
   final String groupId;
@@ -19,7 +18,6 @@ class GroupLeaderboardPage extends StatefulWidget {
 class _GroupLeaderboardPageState extends State<GroupLeaderboardPage> {
   String _sortBy = 'parties';
   bool _isDescending = true;
-  final DatabaseService _db = DatabaseService();
 
   Future<List<Map<String, dynamic>>> _fetchGroupMembersRanking() async {
     // 1. Get Group Members list
@@ -136,20 +134,125 @@ class _GroupLeaderboardPageState extends State<GroupLeaderboardPage> {
                     final username = user['username'] ?? 'Unknown';
                     final stats = user['stats'] as Map<String, dynamic>? ?? {};
                     final value = stats[_sortBy] ?? 0;
+                    final photoUrl = user['photoUrl'] as String?;
 
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: _getRankColor(index),
-                        foregroundColor: Colors.white,
-                        child: Text('${index + 1}'),
+                    // Rank specific styling
+                    Color? rankColor;
+                    double scale = 1.0;
+
+                    if (index == 0) {
+                      rankColor = const Color(0xFFFFD700); // Gold
+                      scale = 1.1;
+                    } else if (index == 1) {
+                      rankColor = const Color(0xFFC0C0C0); // Silver
+                      scale = 1.05;
+                    } else if (index == 2) {
+                      rankColor = const Color(0xFFCD7F32); // Bronze
+                    }
+
+                    return Container(
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: index < 3
+                            ? colorScheme.surfaceContainerHighest
+                                .withOpacity(0.3)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                        border: index < 3
+                            ? Border.all(
+                                color: rankColor!.withOpacity(0.3), width: 1)
+                            : null,
                       ),
-                      title: Text(username,
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
-                      trailing: Text(
-                        '$value ${_sortBy.toUpperCase()}',
-                        style: TextStyle(
-                            color: colorScheme.primary,
-                            fontWeight: FontWeight.bold),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        leading: SizedBox(
+                          width: 50 * scale,
+                          height: 50 * scale,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: rankColor != null
+                                      ? Border.all(color: rankColor, width: 2)
+                                      : null,
+                                  boxShadow: rankColor != null
+                                      ? [
+                                          BoxShadow(
+                                              color: rankColor.withOpacity(0.3),
+                                              blurRadius: 8,
+                                              spreadRadius: 1)
+                                        ]
+                                      : null,
+                                ),
+                                child: CircleAvatar(
+                                  radius: 25 * scale,
+                                  foregroundImage:
+                                      (photoUrl != null && photoUrl.isNotEmpty)
+                                          ? NetworkImage(photoUrl)
+                                          : null,
+                                  backgroundColor:
+                                      colorScheme.surfaceContainerHighest,
+                                  child: const Icon(Icons.person,
+                                      color: Colors.grey),
+                                ),
+                              ),
+                              // Rank Number Badge
+                              Positioned(
+                                bottom: -4,
+                                right: -4,
+                                child: Container(
+                                  width: 22,
+                                  height: 22,
+                                  decoration: BoxDecoration(
+                                    color: rankColor ??
+                                        colorScheme.surfaceContainerHighest,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: colorScheme.surface, width: 2),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      '${index + 1}',
+                                      style: TextStyle(
+                                        color: rankColor != null
+                                            ? Colors.white
+                                            : colorScheme.onSurface,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              )
+                            ],
+                          ),
+                        ),
+                        title: Text(username,
+                            style: TextStyle(
+                              fontWeight: index < 3
+                                  ? FontWeight.w900
+                                  : FontWeight.normal,
+                              fontSize: index < 3 ? 18 : 16,
+                            )),
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                              color:
+                                  colorScheme.primaryContainer.withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(20)),
+                          child: Text(
+                            '$value',
+                            style: TextStyle(
+                                color: colorScheme.onPrimaryContainer,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16),
+                          ),
+                        ),
                       ),
                     );
                   },
@@ -160,12 +263,5 @@ class _GroupLeaderboardPageState extends State<GroupLeaderboardPage> {
         },
       ),
     );
-  }
-
-  Color _getRankColor(int index) {
-    if (index == 0) return Colors.amber; // Gold
-    if (index == 1) return Colors.grey.shade400; // Silver
-    if (index == 2) return Colors.brown.shade400; // Bronze
-    return Colors.white10;
   }
 }

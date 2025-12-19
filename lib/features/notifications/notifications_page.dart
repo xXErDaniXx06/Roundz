@@ -54,17 +54,48 @@ class NotificationsPage extends StatelessWidget {
             itemCount: requests.length,
             itemBuilder: (context, index) {
               final request = requests[index];
-              final requesterUid = request['fromUid'];
-              final requesterName = request['fromName'];
+              final data = request.data() as Map<String, dynamic>;
+
+              final type = data['type'] as String?;
+              final fromUid = data['from'] as String? ?? data['fromUid'];
+              final username =
+                  data['username'] as String? ?? data['fromName'] ?? 'Unknown';
+              final photoUrl = data['photoUrl'] as String?;
+
+              if (fromUid == null) {
+                return const SizedBox.shrink(); // Invalid data
+              }
+
+              final isGroupInvite = (type == 'group_invite');
+              final groupName = data['groupName'] as String? ?? 'Group';
+              final groupId = data['groupId'] as String?;
 
               return ListTile(
-                title: Text("$requesterName sent you a friend request"),
+                leading: CircleAvatar(
+                  foregroundImage: (photoUrl != null && photoUrl.isNotEmpty)
+                      ? NetworkImage(photoUrl)
+                      : null,
+                  backgroundColor: colorScheme.surfaceContainerHighest,
+                  child: const Icon(Icons.person),
+                ),
+                title: isGroupInvite
+                    ? Text("$username invited you to join $groupName")
+                    : Text("$username sent you a friend request"),
+                subtitle:
+                    Text(isGroupInvite ? "Group Invite" : "Friend Request"),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      onPressed: () => db.acceptFriendRequest(
-                          currentUser.uid, request.id, requesterUid),
+                      onPressed: () async {
+                        if (isGroupInvite && groupId != null) {
+                          await db.acceptGroupInvite(
+                              currentUser.uid, request.id, groupId);
+                        } else {
+                          await db.acceptFriendRequest(
+                              currentUser.uid, request.id, fromUid);
+                        }
+                      },
                       icon: const Icon(Icons.check_circle,
                           color: Colors.green, size: 32),
                       tooltip: "Accept",
