@@ -86,6 +86,8 @@ class _GroupLeaderboardPageState extends State<GroupLeaderboardPage> {
               const PopupMenuItem(
                   value: 'cubatas', child: Text('Sort by Cubatas')),
               const PopupMenuItem(
+                  value: 'cervezas', child: Text('Sort by Cervezas')),
+              const PopupMenuItem(
                   value: 'chupitos', child: Text('Sort by Chupitos')),
             ],
           ),

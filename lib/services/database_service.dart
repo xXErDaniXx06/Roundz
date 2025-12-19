@@ -353,6 +353,7 @@ class DatabaseService {
         'timestamp': Timestamp.fromDate(partyDate),
         'cubatas': 0,
         'chupitos': 0,
+        'cervezas': 0,
       });
 
       // 3. WRITE: Update User Stats
@@ -361,14 +362,21 @@ class DatabaseService {
 
         final currentYear = DateTime.now().year;
         var annualStats = data['annual_stats'] as Map<String, dynamic>? ??
-            {'year': currentYear, 'parties': 0, 'cubatas': 0, 'chupitos': 0};
+            {
+              'year': currentYear,
+              'parties': 0,
+              'cubatas': 0,
+              'chupitos': 0,
+              'cervezas': 0
+            };
 
         if ((annualStats['year'] ?? currentYear) != currentYear) {
           annualStats = {
             'year': currentYear,
             'parties': 0,
             'cubatas': 0,
-            'chupitos': 0
+            'chupitos': 0,
+            'cervezas': 0
           };
         }
 
@@ -446,14 +454,21 @@ class DatabaseService {
           final data = userSnapshot.data() as Map<String, dynamic>;
           final currentYear = DateTime.now().year;
           var annualStats = data['annual_stats'] as Map<String, dynamic>? ??
-              {'year': currentYear, 'parties': 0, 'cubatas': 0, 'chupitos': 0};
+              {
+                'year': currentYear,
+                'parties': 0,
+                'cubatas': 0,
+                'chupitos': 0,
+                'cervezas': 0
+              };
 
           if ((annualStats['year'] ?? currentYear) != currentYear) {
             annualStats = {
               'year': currentYear,
               'parties': 0,
               'cubatas': 0,
-              'chupitos': 0
+              'chupitos': 0,
+              'cervezas': 0
             };
           }
 

@@ -108,6 +108,7 @@ class _PartySessionPageState extends State<PartySessionPage> {
           final data = snapshot.data!.data() as Map<String, dynamic>;
           final cubatas = data['cubatas'] ?? 0;
           final chupitos = data['chupitos'] ?? 0;
+          final cervezas = data['cervezas'] ?? 0;
           final photoUrl = data['photoUrl'] as String?;
 
           return CustomScrollView(
@@ -217,21 +218,14 @@ class _PartySessionPageState extends State<PartySessionPage> {
                   child: Column(
                     children: [
                       const SizedBox(height: 20),
-                      _buildCounterCard(
-                          context,
-                          "Cubatas",
-                          cubatas,
-                          Icons.local_drink,
-                          Theme.of(context).colorScheme.primary,
-                          'cubatas'),
+                      _buildCounterCard(context, "Cubatas", cubatas,
+                          Icons.local_drink, Colors.lightBlue, 'cubatas'),
                       const SizedBox(height: 24),
-                      _buildCounterCard(
-                          context,
-                          "Chupitos",
-                          chupitos,
-                          Icons.local_bar,
-                          Theme.of(context).colorScheme.secondary,
-                          'chupitos'),
+                      _buildCounterCard(context, "Chupitos", chupitos,
+                          Icons.local_bar, Colors.deepOrange, 'chupitos'),
+                      const SizedBox(height: 24),
+                      _buildCounterCard(context, "Cervezas", cervezas,
+                          Icons.sports_bar, Colors.amber, 'cervezas'),
                       const SizedBox(height: 50),
                     ],
                   ),

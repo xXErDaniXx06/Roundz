@@ -48,6 +48,8 @@ class _RankingPageState extends State<RankingPage> {
                 const PopupMenuItem(
                     value: 'cubatas', child: Text('Sort by Cubatas')),
                 const PopupMenuItem(
+                    value: 'cervezas', child: Text('Sort by Cervezas')),
+                const PopupMenuItem(
                     value: 'chupitos', child: Text('Sort by Chupitos')),
               ],
             ),

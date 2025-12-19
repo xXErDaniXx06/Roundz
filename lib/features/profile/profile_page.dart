@@ -209,15 +209,20 @@ class _ProfilePageState extends State<ProfilePage> {
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.local_drink,
-                                    size: 16, color: colorScheme.primary),
+                                const Icon(Icons.local_drink,
+                                    size: 16, color: Colors.lightBlue),
                                 const SizedBox(width: 4),
                                 Text("${partyData['cubatas'] ?? 0}"),
                                 const SizedBox(width: 12),
-                                Icon(Icons.local_bar,
-                                    size: 16, color: colorScheme.secondary),
+                                const Icon(Icons.local_bar,
+                                    size: 16, color: Colors.deepOrange),
                                 const SizedBox(width: 4),
                                 Text("${partyData['chupitos'] ?? 0}"),
+                                const SizedBox(width: 12),
+                                const Icon(Icons.sports_bar,
+                                    size: 16, color: Colors.amber),
+                                const SizedBox(width: 4),
+                                Text("${partyData['cervezas'] ?? 0}"),
                                 const SizedBox(width: 8),
                                 const Icon(Icons.arrow_forward_ios, size: 14),
                               ],
@@ -398,6 +403,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final parties = stats['parties'] ?? 0;
     final cubatas = stats['cubatas'] ?? 0;
     final chupitos = stats['chupitos'] ?? 0;
+    final cervezas = stats['cervezas'] ?? 0;
 
     return SafeArea(
       child: Padding(
@@ -482,11 +488,15 @@ class _ProfilePageState extends State<ProfilePage> {
               children: [
                 Expanded(
                     child: _buildSmallStat(context, "CUBATAS", cubatas,
-                        Icons.local_drink, colorScheme.primary)),
-                const SizedBox(width: 12),
+                        Icons.local_drink, Colors.lightBlue)),
+                const SizedBox(width: 8),
                 Expanded(
                     child: _buildSmallStat(context, "CHUPITOS", chupitos,
-                        Icons.local_bar, colorScheme.secondary)),
+                        Icons.local_bar, Colors.deepOrange)),
+                const SizedBox(width: 8),
+                Expanded(
+                    child: _buildSmallStat(context, "CERVEZAS", cervezas,
+                        Icons.sports_bar, Colors.amber)),
               ],
             )
           ],
