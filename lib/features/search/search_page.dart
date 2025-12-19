@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../../services/database_service.dart';
+import '../profile/profile_page.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -16,8 +17,32 @@ class _SearchPageState extends State<SearchPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   List<Map<String, dynamic>> _searchResults = [];
+  List<Map<String, dynamic>> _myFriends = [];
   bool _isLoading = false;
   Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchFriends();
+  }
+
+  Future<void> _fetchFriends() async {
+    final myUid = _auth.currentUser?.uid;
+    if (myUid == null) return;
+
+    // Fetch full friend objects to allow local search fallback
+    try {
+      final friends = await _db.getFriends(myUid);
+      if (mounted) {
+        setState(() {
+          _myFriends = friends;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching friends: $e");
+    }
+  }
 
   @override
   void dispose() {
@@ -33,7 +58,8 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Future<void> _handleSearch() async {
-    if (_searchController.text.trim().isEmpty) {
+    final query = _searchController.text.trim();
+    if (query.isEmpty) {
       if (mounted) {
         setState(() {
           _searchResults = [];
@@ -47,17 +73,46 @@ class _SearchPageState extends State<SearchPage> {
       _isLoading = true;
     });
 
-    final results = await _db.searchUsers(_searchController.text.trim());
+    // 1. Local Search (Friends) - Case insensitive partial match
+    final lowerQuery = query.toLowerCase();
+    final localMatches = _myFriends.where((friend) {
+      final username = (friend['username'] ?? '').toString().toLowerCase();
+      return username
+          .contains(lowerQuery); // Contains check is broader than prefix
+    }).toList();
 
-    // Filter out myself
+    // 2. Remote Search (Firestore)
+    List<Map<String, dynamic>> remoteResults = [];
+    try {
+      remoteResults = await _db.searchUsers(query);
+    } catch (e) {
+      debugPrint("Remote search failed: $e");
+    }
+
+    // 3. Merge Results (Dedup based on UID)
+    final Map<String, Map<String, dynamic>> mergedMap = {};
+
+    // Add local friend matches first (priority)
+    for (var user in localMatches) {
+      mergedMap[user['uid']] = user;
+    }
+
+    // Add remote matches if not present
+    for (var user in remoteResults) {
+      if (!mergedMap.containsKey(user['uid'])) {
+        mergedMap[user['uid']] = user;
+      }
+    }
+
+    // Remove myself
     final myUid = _auth.currentUser?.uid;
     if (myUid != null) {
-      results.removeWhere((user) => user['uid'] == myUid);
+      mergedMap.remove(myUid);
     }
 
     if (mounted) {
       setState(() {
-        _searchResults = results;
+        _searchResults = mergedMap.values.toList();
         _isLoading = false;
       });
     }
@@ -104,16 +159,36 @@ class _SearchPageState extends State<SearchPage> {
               itemCount: _searchResults.length,
               itemBuilder: (context, index) {
                 final user = _searchResults[index];
+                final uid = user['uid'];
+                final isFriend = _myFriends.any((f) => f['uid'] == uid);
+
+                final photoUrl = user['photoUrl'];
+
                 return ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.person)),
+                  leading: CircleAvatar(
+                    foregroundImage: (photoUrl != null && photoUrl.isNotEmpty)
+                        ? NetworkImage(photoUrl)
+                        : null,
+                    backgroundColor:
+                        Colors.grey[800], // Dark background for avatar
+                    child: const Icon(Icons.person, color: Colors.white70),
+                  ),
                   title: Text(user['username'] ?? 'Unknown',
                       style: const TextStyle(color: Colors.white)),
                   trailing: IconButton(
-                    icon: const Icon(Icons.person_add,
-                        color:
-                            Colors.white70), // Keep same icon or change to send
-                    tooltip: "Send request",
-                    onPressed: () => _sendRequest(user['uid']),
+                    icon: Icon(isFriend ? Icons.visibility : Icons.person_add,
+                        color: Colors.white70),
+                    tooltip: isFriend ? "View Profile" : "Send request",
+                    onPressed: () {
+                      if (isFriend) {
+                        Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => ProfilePage(userId: uid)));
+                      } else {
+                        _sendRequest(uid);
+                      }
+                    },
                   ),
                 );
               },

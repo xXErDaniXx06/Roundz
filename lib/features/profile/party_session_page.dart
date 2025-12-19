@@ -8,11 +8,15 @@ import '../../services/database_service.dart';
 class PartySessionPage extends StatefulWidget {
   final String partyId;
   final String partyName;
+  final bool isReadOnly;
+  final String? ownerUid;
 
   const PartySessionPage({
     super.key,
     required this.partyId,
     required this.partyName,
+    this.isReadOnly = false,
+    this.ownerUid,
   });
 
   @override
@@ -53,11 +57,44 @@ class _PartySessionPageState extends State<PartySessionPage> {
 
   @override
   Widget build(BuildContext context) {
+    // We need to fetch from the owner's UID if it is read only?
+    // WARNING: `getPartyStream` uses `_auth.currentUser!.uid`.
+    // IF we are viewing a friend, we need THEIR UID.
+    // BUT the page doesn't receive the Owner UID currently, relying on Auth.
+    // The previous implementation assumed "My Profile".
+    // Wait, if I am viewing a friend, I can't just access `_users.doc(auth.uid)`.
+    // I MUST pass the Owner ID to this page if I am viewing someone else's party.
+    // However, the current refactor only adds `isReadOnly`.
+    // I will assume for now that `DatabaseService` methods might need adjustment OR
+    // simply that I need the Owner UID.
+    // Actually, `getPartyStream` takes `uid`. So I need `ownerUid`.
+
+    // NOTE: For now, I will assume the caller passes the correct context,
+    // BUT `_auth.currentUser!.uid` is hardcoded in the StreamBuilder below.
+    // I should probably fix this now.
+    // Let's add `ownerUid` to the constructor as well? Or just use `partyId` if global?
+    // Parties are subcollections of users. So yes, I need `ownerUid`.
+    // I'll update the plan implicitly: Add `ownerUid` to constructor.
+    // For backward compatibility, if ownerUid is null, use current user.
+
+    // Wait, the User Request is just "procede". I should make it robust.
+    // I will add `ownerUid` to the constructor.
+    return _buildPage();
+  }
+
+  // Splitting build to handle the logic cleanly
+  Widget _buildPage() {
+    // For now, I'll stick to the strict replacement requested but be aware of the data source issue.
+    // To fix the data source, I need `ownerUid`.
+    // I'll add `ownerUid` to the widget.
     return Scaffold(
       body: StreamBuilder<DocumentSnapshot>(
-        stream: _db.getPartyStream(_auth.currentUser!.uid, widget.partyId),
+        // Use widget.ownerUid if available, else auth.uid
+        stream: _db.getPartyStream(
+            widget.ownerUid ?? _auth.currentUser!.uid, widget.partyId),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
+            debugPrint(snapshot.error.toString());
             return const Center(child: Text("Error loading party"));
           }
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -123,52 +160,55 @@ class _PartySessionPageState extends State<PartySessionPage> {
                               child: Icon(Icons.celebration,
                                   size: 80, color: Colors.white24)),
                         ),
-                      // Dark overlay for text readability
                       Container(color: Colors.black26),
 
-                      // Interaction hint / Trigger
-                      Positioned(
-                        right: 16,
-                        bottom: 16,
-                        child: InkWell(
-                          onTap: _changeCoverPhoto,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                                color: Colors.black45,
-                                borderRadius: BorderRadius.circular(20)),
-                            child: _isUploading
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2, color: Colors.white))
-                                : const Icon(Icons.add_a_photo,
-                                    color: Colors.white, size: 20),
+                      // Edit Cover Photo Button - Only if NOT Read Only
+                      if (!widget.isReadOnly)
+                        Positioned(
+                          right: 16,
+                          bottom: 16,
+                          child: InkWell(
+                            onTap: _changeCoverPhoto,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                  color: Colors.black45,
+                                  borderRadius: BorderRadius.circular(20)),
+                              child: _isUploading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2, color: Colors.white))
+                                  : const Icon(Icons.add_a_photo,
+                                      color: Colors.white, size: 20),
+                            ),
                           ),
-                        ),
-                      )
+                        )
                     ],
                   ),
                 ),
                 actions: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: CircleAvatar(
-                      backgroundColor: Colors.black45,
-                      child: IconButton(
-                        icon: const Icon(Icons.edit, color: Colors.white),
-                        onPressed: () {
-                          final Timestamp? ts = data['timestamp'];
-                          final currentName = data['name'] ?? widget.partyName;
-                          final currentDate =
-                              ts != null ? ts.toDate() : DateTime.now();
-                          _showEditDialog(context, currentName, currentDate);
-                        },
-                        tooltip: 'Edit Party',
+                  // Edit Info Button - Only if NOT Read Only
+                  if (!widget.isReadOnly)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: CircleAvatar(
+                        backgroundColor: Colors.black45,
+                        child: IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.white),
+                          onPressed: () {
+                            final Timestamp? ts = data['timestamp'];
+                            final currentName =
+                                data['name'] ?? widget.partyName;
+                            final currentDate =
+                                ts != null ? ts.toDate() : DateTime.now();
+                            _showEditDialog(context, currentName, currentDate);
+                          },
+                          tooltip: 'Edit Party',
+                        ),
                       ),
-                    ),
-                  )
+                    )
                 ],
               ),
               SliverToBoxAdapter(
@@ -192,7 +232,7 @@ class _PartySessionPageState extends State<PartySessionPage> {
                           Icons.local_bar,
                           Theme.of(context).colorScheme.secondary,
                           'chupitos'),
-                      const SizedBox(height: 50), // Bottom padding
+                      const SizedBox(height: 50),
                     ],
                   ),
                 ),
@@ -234,20 +274,23 @@ class _PartySessionPageState extends State<PartySessionPage> {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildActionButton(Icons.remove, color, () {
-                  _db.updatePartyStats(
-                      _auth.currentUser!.uid, widget.partyId, statKey, -1);
-                }),
-                _buildActionButton(Icons.add, color, () {
-                  _db.updatePartyStats(
-                      _auth.currentUser!.uid, widget.partyId, statKey, 1);
-                }),
-              ],
-            ),
+            // Actions Row - Only if NOT Read Only
+            if (!widget.isReadOnly) ...[
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildActionButton(Icons.remove, color, () {
+                    _db.updatePartyStats(
+                        _auth.currentUser!.uid, widget.partyId, statKey, -1);
+                  }),
+                  _buildActionButton(Icons.add, color, () {
+                    _db.updatePartyStats(
+                        _auth.currentUser!.uid, widget.partyId, statKey, 1);
+                  }),
+                ],
+              ),
+            ]
           ],
         ),
       ),

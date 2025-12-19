@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../services/chat_service.dart';
 import '../../services/database_service.dart';
+import '../profile/profile_page.dart';
 
 class ChatRoomPage extends StatefulWidget {
   final String receiverUserEmail; // Name/Title
@@ -72,22 +73,34 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
-        title: Row(
-          children: [
-            CircleAvatar(
-              backgroundImage: widget.receiverUserPhotoUrl.isNotEmpty
-                  ? NetworkImage(widget.receiverUserPhotoUrl)
-                  : null,
-              child: widget.receiverUserPhotoUrl.isEmpty
-                  ? Icon(widget.isGroup ? Icons.group : Icons.person)
-                  : null,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              widget.receiverUserEmail,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ],
+        title: GestureDetector(
+          onTap: () {
+            if (!widget.isGroup) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ProfilePage(userId: widget.receiverUserID),
+                ),
+              );
+            }
+          },
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundImage: widget.receiverUserPhotoUrl.isNotEmpty
+                    ? NetworkImage(widget.receiverUserPhotoUrl)
+                    : null,
+                child: widget.receiverUserPhotoUrl.isEmpty
+                    ? Icon(widget.isGroup ? Icons.group : Icons.person)
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                widget.receiverUserEmail,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
         ),
         backgroundColor: Colors.transparent, // Seamless look
         scrolledUnderElevation: 0,

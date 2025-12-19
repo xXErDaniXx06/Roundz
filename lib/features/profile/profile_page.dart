@@ -10,7 +10,9 @@ import '../settings/settings_page.dart';
 import 'party_session_page.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+  final String? userId; // Optional: If provided, view this user's profile
+
+  const ProfilePage({super.key, this.userId});
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -19,9 +21,22 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final DatabaseService db = DatabaseService();
   final AuthService auth = AuthService();
-  // Ensure user is not null before accessing, or handle null case.
-  // For this refactor, we assume the user is logged in based on the `!` operator.
-  final User user = FirebaseAuth.instance.currentUser!;
+  // We can't use 'user' directly for data fetching if viewing a friend.
+  late String targetUid;
+  late bool isCurrentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (widget.userId != null && widget.userId != currentUser?.uid) {
+      targetUid = widget.userId!;
+      isCurrentUser = false;
+    } else {
+      targetUid = currentUser!.uid;
+      isCurrentUser = true;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,9 +52,15 @@ class _ProfilePageState extends State<ProfilePage> {
             floating: false,
             pinned: true,
             backgroundColor: colorScheme.surface,
+            leading: !isCurrentUser
+                ? IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => Navigator.pop(context),
+                  )
+                : null,
             flexibleSpace: FlexibleSpaceBar(
               background: StreamBuilder<DocumentSnapshot>(
-                  stream: db.getUserStream(user.uid),
+                  stream: db.getUserStream(targetUid),
                   builder: (context, snapshot) {
                     if (snapshot.hasError) {
                       return const Center(child: Icon(Icons.error));
@@ -57,22 +78,25 @@ class _ProfilePageState extends State<ProfilePage> {
                   }),
             ),
             actions: [
-              IconButton(
-                icon: const Icon(Icons.notifications),
-                onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const NotificationsPage())),
-              ),
-              IconButton(
-                icon: const Icon(Icons.settings),
-                onPressed: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const SettingsPage())),
-              ),
-              IconButton(
-                icon: const Icon(Icons.logout),
-                onPressed: () => _showLogoutDialog(context),
-              ),
+              // Only show actions for current user
+              if (isCurrentUser) ...[
+                IconButton(
+                  icon: const Icon(Icons.notifications),
+                  onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const NotificationsPage())),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.settings),
+                  onPressed: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const SettingsPage())),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.logout),
+                  onPressed: () => _showLogoutDialog(context),
+                ),
+              ]
             ],
           ),
 
@@ -81,7 +105,7 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
               child: Text(
-                "Your Parties",
+                isCurrentUser ? "Your Parties" : "Parties History",
                 style: Theme.of(context)
                     .textTheme
                     .headlineSmall
@@ -92,7 +116,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
           // Parties List
           StreamBuilder<QuerySnapshot>(
-            stream: db.getParties(user.uid),
+            stream: db.getParties(targetUid),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const SliverToBoxAdapter(
@@ -117,9 +141,11 @@ class _ProfilePageState extends State<ProfilePage> {
                         Text("No parties yet",
                             style:
                                 TextStyle(color: colorScheme.onSurfaceVariant)),
-                        const SizedBox(height: 5),
-                        const Text("Tap the + button to start one!",
-                            style: TextStyle(color: Colors.grey)),
+                        if (isCurrentUser) ...[
+                          const SizedBox(height: 5),
+                          const Text("Tap the + button to start one!",
+                              style: TextStyle(color: Colors.grey)),
+                        ]
                       ],
                     ),
                   ),
@@ -132,7 +158,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     final partyData =
                         docs[index].data() as Map<String, dynamic>;
                     final partyId = docs[index].id;
-                    // Format date nicely if possible, or just show rough time
                     final Timestamp? ts = partyData['timestamp'];
                     final dateStr = ts != null
                         ? "${ts.toDate().day}/${ts.toDate().month}/${ts.toDate().year}"
@@ -149,9 +174,12 @@ class _ProfilePageState extends State<ProfilePage> {
                               context,
                               MaterialPageRoute(
                                   builder: (_) => PartySessionPage(
-                                      partyId: partyId,
-                                      partyName:
-                                          partyData['name'] ?? 'Party')));
+                                        partyId: partyId,
+                                        partyName: partyData['name'] ?? 'Party',
+                                        isReadOnly:
+                                            !isCurrentUser, // READ ONLY IF NOT ME
+                                        ownerUid: targetUid, // PASS OWNER ID
+                                      )));
                         },
                         child: Ink(
                           decoration: BoxDecoration(
@@ -162,19 +190,16 @@ class _ProfilePageState extends State<ProfilePage> {
                                 ? DecorationImage(
                                     image: NetworkImage(photoUrl),
                                     fit: BoxFit.cover,
-                                    opacity:
-                                        0.3 // Dim it a bit to make text readable or keep it clean
-                                    )
+                                    opacity: 0.3)
                                 : null,
                           ),
                           child: ListTile(
                             contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 20, vertical: 12),
-                            // If there is a photo, we might not need the leading icon, or we keep it for consistency
                             leading: CircleAvatar(
                               backgroundColor:
                                   colorScheme.primaryContainer.withOpacity(0.9),
-                              child: Icon(Icons.music_note,
+                              child: Icon(Icons.celebration,
                                   color: colorScheme.onPrimaryContainer),
                             ),
                             title: Text(partyData['name'] ?? 'Unnamed Party',
@@ -207,15 +232,16 @@ class _ProfilePageState extends State<ProfilePage> {
               );
             },
           ),
-          // Padding at bottom
           const SliverToBoxAdapter(child: SizedBox(height: 80)),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreatePartyDialog(context),
-        label: const Text("New Party"),
-        icon: const Icon(Icons.add),
-      ),
+      floatingActionButton: isCurrentUser
+          ? FloatingActionButton.extended(
+              onPressed: () => _showCreatePartyDialog(context),
+              label: const Text("New Party"),
+              icon: const Icon(Icons.add),
+            )
+          : null, // No create button for friends
     );
   }
 
@@ -241,6 +267,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _showCreatePartyDialog(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser!;
     final TextEditingController controller = TextEditingController();
     File? selectedImage;
     bool isUploading = false;

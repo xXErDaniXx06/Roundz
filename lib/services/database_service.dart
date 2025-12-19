@@ -264,7 +264,7 @@ class DatabaseService {
     try {
       final snapshot = await _users
           .where('searchKey', isGreaterThanOrEqualTo: searchKey)
-          .where('searchKey', isLessThan: '${searchKey}z')
+          .where('searchKey', isLessThan: '$searchKey\uf8ff')
           .limit(10)
           .get();
 
