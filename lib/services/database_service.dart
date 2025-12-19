@@ -1,9 +1,12 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/material.dart';
 
 class DatabaseService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   // Collection References
   CollectionReference get _users => _db.collection('users');
@@ -312,6 +315,166 @@ class DatabaseService {
         await _users.where('username', isEqualTo: username).limit(1).get();
 
     return querySnapshot.docs.isNotEmpty;
+  }
+
+  // --- Party & Sessions Logic ---
+
+  // Upload Image to Storage
+  Future<String> uploadPartyImage(String uid, File imageFile) async {
+    try {
+      final String fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final Reference ref =
+          _storage.ref().child('user_parties').child(uid).child(fileName);
+
+      final UploadTask task = ref.putFile(imageFile);
+      final TaskSnapshot snapshot = await task;
+      return await snapshot.ref.getDownloadURL();
+    } catch (e) {
+      debugPrint("Error uploading image: $e");
+      rethrow;
+    }
+  }
+
+  // Create a new Party
+  Future<String> createParty(String uid, String partyName,
+      {String? photoUrl, DateTime? date}) async {
+    final partyRef = _users.doc(uid).collection('parties').doc();
+    final userRef = _users.doc(uid);
+    final partyDate = date ?? DateTime.now();
+
+    await _db.runTransaction((transaction) async {
+      // 1. READ: Get User Data First
+      final userSnapshot = await transaction.get(userRef);
+
+      // 2. WRITE: Create Party Doc
+      transaction.set(partyRef, {
+        'name': partyName,
+        'photoUrl': photoUrl,
+        'timestamp': Timestamp.fromDate(partyDate),
+        'cubatas': 0,
+        'chupitos': 0,
+      });
+
+      // 3. WRITE: Update User Stats
+      if (userSnapshot.exists) {
+        final data = userSnapshot.data() as Map<String, dynamic>;
+
+        final currentYear = DateTime.now().year;
+        var annualStats = data['annual_stats'] as Map<String, dynamic>? ??
+            {'year': currentYear, 'parties': 0, 'cubatas': 0, 'chupitos': 0};
+
+        if ((annualStats['year'] ?? currentYear) != currentYear) {
+          annualStats = {
+            'year': currentYear,
+            'parties': 0,
+            'cubatas': 0,
+            'chupitos': 0
+          };
+        }
+
+        transaction.update(userRef, {
+          'stats.parties': FieldValue.increment(1),
+          'annual_stats': {
+            ...annualStats,
+            'parties': (annualStats['parties'] ?? 0) + 1
+          }
+        });
+      }
+    });
+    return partyRef.id;
+  }
+
+  // Update Party Photo
+  Future<void> updatePartyPhoto(
+      String uid, String partyId, String photoUrl) async {
+    await _users
+        .doc(uid)
+        .collection('parties')
+        .doc(partyId)
+        .update({'photoUrl': photoUrl});
+  }
+
+  // Update Party Details (Name, Date)
+  Future<void> updatePartyDetails(String uid, String partyId,
+      {String? name, DateTime? date}) async {
+    final Map<String, dynamic> updates = {};
+    if (name != null) updates['name'] = name;
+    if (date != null) updates['timestamp'] = Timestamp.fromDate(date);
+
+    if (updates.isNotEmpty) {
+      await _users.doc(uid).collection('parties').doc(partyId).update(updates);
+    }
+  }
+
+  // Get Parties Stream
+  Stream<QuerySnapshot> getParties(String uid) {
+    return _users
+        .doc(uid)
+        .collection('parties')
+        .orderBy('timestamp', descending: true)
+        .snapshots();
+  }
+
+  // Get Single Party Stream (For live updates inside the page)
+  Stream<DocumentSnapshot> getPartyStream(String uid, String partyId) {
+    return _users.doc(uid).collection('parties').doc(partyId).snapshots();
+  }
+
+  // Update Party Stats (Increment/Decrement Drink)
+  Future<void> updatePartyStats(
+      String uid, String partyId, String statName, int delta) async {
+    final partyRef = _users.doc(uid).collection('parties').doc(partyId);
+    final userRef = _users.doc(uid);
+
+    try {
+      await _db.runTransaction((transaction) async {
+        // 1. READ: Get Party State
+        final partySnapshot = await transaction.get(partyRef);
+        if (!partySnapshot.exists) return; // Exit if party doesn't exist
+
+        // 2. READ: Get User State (MUST be before any write)
+        final userSnapshot = await transaction.get(userRef);
+
+        final currentVal = partySnapshot.get(statName) ?? 0;
+        if (currentVal + delta < 0) return; // Prevent negative local
+
+        // 3. WRITE: Update Party
+        transaction.update(partyRef, {statName: FieldValue.increment(delta)});
+
+        // 4. WRITE: Update Global User Stats
+        if (userSnapshot.exists) {
+          final data = userSnapshot.data() as Map<String, dynamic>;
+          final currentYear = DateTime.now().year;
+          var annualStats = data['annual_stats'] as Map<String, dynamic>? ??
+              {'year': currentYear, 'parties': 0, 'cubatas': 0, 'chupitos': 0};
+
+          if ((annualStats['year'] ?? currentYear) != currentYear) {
+            annualStats = {
+              'year': currentYear,
+              'parties': 0,
+              'cubatas': 0,
+              'chupitos': 0
+            };
+          }
+
+          final globalStatVal = (data['stats']?[statName] ?? 0);
+          // Only update global if it won't go negative (or if we don't care about global negative logic as much as local)
+          // Assuming we want to keep them in sync, if local allowed it, global generally should too unless they are out of sync.
+          if (globalStatVal + delta >= 0) {
+            transaction.update(userRef, {
+              'stats.$statName': FieldValue.increment(delta),
+              'annual_stats': {
+                ...annualStats,
+                statName:
+                    ((annualStats[statName] ?? 0) + delta).clamp(0, 999999)
+              }
+            });
+          }
+        }
+      });
+    } catch (e) {
+      debugPrint("Error updating party stats: $e");
+    }
   }
 
   // --- Group Logic ---

@@ -1,327 +1,494 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
 import '../notifications/notifications_page.dart';
 import '../settings/settings_page.dart';
+import 'party_session_page.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // ... (existing variables)
-    final user = FirebaseAuth.instance.currentUser;
-    final DatabaseService db = DatabaseService();
-    final AuthService auth = AuthService();
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+  State<ProfilePage> createState() => _ProfilePageState();
+}
 
-    if (user == null) {
-      return const Center(child: Text("Not logged in"));
-    }
+class _ProfilePageState extends State<ProfilePage> {
+  final DatabaseService db = DatabaseService();
+  final AuthService auth = AuthService();
+  // Ensure user is not null before accessing, or handle null case.
+  // For this refactor, we assume the user is logged in based on the `!` operator.
+  final User user = FirebaseAuth.instance.currentUser!;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Roundz'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const NotificationsPage()),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text("Cerrar Sesión"),
-                  content: const Text("¿Estás seguro de que quieres salir?"),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text("Cancelar"),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        Navigator.pop(context);
-                        await auth.signOut();
-                      },
-                      child: const Text("Cerrar Sesión"),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SettingsPage()),
-              );
-            },
-          ),
-        ],
-      ),
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: db.getUserStream(user.uid),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return const Center(child: Text('Something went wrong'));
-          }
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      backgroundColor: colorScheme.surface,
+      body: CustomScrollView(
+        slivers: [
+          // App Bar Area (Stats)
+          SliverAppBar(
+            expandedHeight: 460.0,
+            floating: false,
+            pinned: true,
+            backgroundColor: colorScheme.surface,
+            flexibleSpace: FlexibleSpaceBar(
+              background: StreamBuilder<DocumentSnapshot>(
+                  stream: db.getUserStream(user.uid),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return const Center(child: Icon(Icons.error));
+                    }
+                    final data =
+                        snapshot.data?.data() as Map<String, dynamic>? ?? {};
+                    final stats = data['stats'] as Map<String, dynamic>? ?? {};
 
-          final data = snapshot.data!.data() as Map<String, dynamic>?;
-
-          if (data == null) {
-            return const Center(child: Text("No profile data"));
-          }
-
-          final stats = data['stats'] as Map<String, dynamic>? ?? {};
-          final int parties = stats['parties'] ?? 0;
-          final int cubatas = stats['cubatas'] ?? 0;
-          final int chupitos = stats['chupitos'] ?? 0;
-
-          final annualStats =
-              data['annual_stats'] as Map<String, dynamic>? ?? {};
-          final int partiesYear = annualStats['parties'] ?? 0;
-          final int cubatasYear = annualStats['cubatas'] ?? 0;
-          final int chupitosYear = annualStats['chupitos'] ?? 0;
-
-          final List<dynamic> friendsList =
-              data['friends'] as List<dynamic>? ?? [];
-          final int friendsCount =
-              friendsList.length; // Use list length for accuracy
-          final String username = data['username'] ?? 'User';
-          final String photoUrl = data['photoUrl'] ?? '';
-
-          return CustomScrollView(
-            slivers: [
-              // Profile Header & Control Panel
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Center(
-                        child: Column(
-                          children: [
-                            CircleAvatar(
-                              radius: 50,
-                              backgroundColor:
-                                  colorScheme.surfaceContainerHighest,
-                              backgroundImage: photoUrl.isNotEmpty
-                                  ? NetworkImage(photoUrl)
-                                  : null,
-                              child: photoUrl.isEmpty
-                                  ? Icon(Icons.person,
-                                      size: 50,
-                                      color: colorScheme.onSurfaceVariant)
-                                  : null,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              username,
-                              style: textTheme.headlineMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: colorScheme.onSurface,
-                              ),
-                            ),
-                            Text(
-                              '$friendsCount Friends',
-                              style: textTheme.bodyMedium?.copyWith(
-                                  color: colorScheme.onSurfaceVariant),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                      // Control Panel (Add/Remove)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _ControlKey(
-                            label: "FIESTA",
-                            onIncrement: () =>
-                                db.incrementStat(user.uid, 'parties'),
-                            onDecrement: () =>
-                                db.decrementStat(user.uid, 'parties'),
-                          ),
-                          _ControlKey(
-                            label: "CUBATA",
-                            onIncrement: () =>
-                                db.incrementStat(user.uid, 'cubatas'),
-                            onDecrement: () =>
-                                db.decrementStat(user.uid, 'cubatas'),
-                          ),
-                          _ControlKey(
-                            label: "CHUPITO",
-                            onIncrement: () =>
-                                db.incrementStat(user.uid, 'chupitos'),
-                            onDecrement: () =>
-                                db.decrementStat(user.uid, 'chupitos'),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-                  ),
-                ),
+                    return _buildGlobalStatsHeader(
+                        context,
+                        stats,
+                        data['username'] ?? 'User',
+                        data['photoUrl'] // Pass photoUrl
+                        );
+                  }),
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.notifications),
+                onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const NotificationsPage())),
               ),
-
-              // Stats Grid
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                sliver: SliverGrid(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 0.7,
-                  ),
-                  delegate: SliverChildListDelegate([
-                    _DoubleStatCard(
-                      title: "FIESTAS",
-                      annual: partiesYear,
-                      total: parties,
-                    ),
-                    _DoubleStatCard(
-                      title: "CUBATAS",
-                      annual: cubatasYear,
-                      total: cubatas,
-                    ),
-                    _DoubleStatCard(
-                      title: "CHUPITOS",
-                      annual: chupitosYear,
-                      total: chupitos,
-                    ),
-                  ]),
-                ),
+              IconButton(
+                icon: const Icon(Icons.settings),
+                onPressed: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const SettingsPage())),
               ),
-              // Extra space at bottom
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 32),
+              IconButton(
+                icon: const Icon(Icons.logout),
+                onPressed: () => _showLogoutDialog(context),
               ),
             ],
-          );
-        },
+          ),
+
+          // Title for Parties List
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+              child: Text(
+                "Your Parties",
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+
+          // Parties List
+          StreamBuilder<QuerySnapshot>(
+            stream: db.getParties(user.uid),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SliverToBoxAdapter(
+                    child: Center(
+                        child: Padding(
+                            padding: EdgeInsets.all(20),
+                            child: CircularProgressIndicator())));
+              }
+
+              final docs = snapshot.data?.docs ?? [];
+              if (docs.isEmpty) {
+                return SliverToBoxAdapter(
+                  child: Center(
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 40),
+                        Icon(Icons.celebration,
+                            size: 60,
+                            color:
+                                colorScheme.onSurfaceVariant.withOpacity(0.3)),
+                        const SizedBox(height: 10),
+                        Text("No parties yet",
+                            style:
+                                TextStyle(color: colorScheme.onSurfaceVariant)),
+                        const SizedBox(height: 5),
+                        const Text("Tap the + button to start one!",
+                            style: TextStyle(color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final partyData =
+                        docs[index].data() as Map<String, dynamic>;
+                    final partyId = docs[index].id;
+                    // Format date nicely if possible, or just show rough time
+                    final Timestamp? ts = partyData['timestamp'];
+                    final dateStr = ts != null
+                        ? "${ts.toDate().day}/${ts.toDate().month}/${ts.toDate().year}"
+                        : "";
+                    final photoUrl = partyData['photoUrl'] as String?;
+
+                    return Container(
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () {
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => PartySessionPage(
+                                      partyId: partyId,
+                                      partyName:
+                                          partyData['name'] ?? 'Party')));
+                        },
+                        child: Ink(
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainerHighest
+                                .withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(16),
+                            image: photoUrl != null
+                                ? DecorationImage(
+                                    image: NetworkImage(photoUrl),
+                                    fit: BoxFit.cover,
+                                    opacity:
+                                        0.3 // Dim it a bit to make text readable or keep it clean
+                                    )
+                                : null,
+                          ),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 12),
+                            // If there is a photo, we might not need the leading icon, or we keep it for consistency
+                            leading: CircleAvatar(
+                              backgroundColor:
+                                  colorScheme.primaryContainer.withOpacity(0.9),
+                              child: Icon(Icons.music_note,
+                                  color: colorScheme.onPrimaryContainer),
+                            ),
+                            title: Text(partyData['name'] ?? 'Unnamed Party',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold)),
+                            subtitle: Text(dateStr),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.local_drink,
+                                    size: 16, color: colorScheme.primary),
+                                const SizedBox(width: 4),
+                                Text("${partyData['cubatas'] ?? 0}"),
+                                const SizedBox(width: 12),
+                                Icon(Icons.local_bar,
+                                    size: 16, color: colorScheme.secondary),
+                                const SizedBox(width: 4),
+                                Text("${partyData['chupitos'] ?? 0}"),
+                                const SizedBox(width: 8),
+                                const Icon(Icons.arrow_forward_ios, size: 14),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  childCount: docs.length,
+                ),
+              );
+            },
+          ),
+          // Padding at bottom
+          const SliverToBoxAdapter(child: SizedBox(height: 80)),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showCreatePartyDialog(context),
+        label: const Text("New Party"),
+        icon: const Icon(Icons.add),
       ),
     );
   }
-}
 
-class _ControlKey extends StatelessWidget {
-  final String label;
-  final VoidCallback onIncrement;
-  final VoidCallback onDecrement;
-
-  const _ControlKey(
-      {required this.label,
-      required this.onIncrement,
-      required this.onDecrement});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Column(
-      children: [
-        Text(label,
-            style: TextStyle(
-                color: colorScheme.onSurfaceVariant,
-                fontSize: 12,
-                fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            IconButton.filled(
-              onPressed: onDecrement,
-              icon: const Icon(Icons.remove, size: 18),
-              style: IconButton.styleFrom(
-                  backgroundColor: colorScheme.surfaceContainerHighest,
-                  foregroundColor: colorScheme.onSurfaceVariant),
-            ),
-            const SizedBox(width: 8),
-            IconButton.filled(
-              onPressed: onIncrement,
-              icon: const Icon(Icons.add, size: 18),
-              style: IconButton.styleFrom(
-                  backgroundColor: colorScheme.primary,
-                  foregroundColor: colorScheme.onPrimary),
-            ),
-          ],
-        )
-      ],
+  void _showLogoutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Logout"),
+        content: const Text("Are you sure you want to log out?"),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel")),
+          TextButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await auth.signOut();
+              },
+              child: const Text("Log Out")),
+        ],
+      ),
     );
   }
-}
 
-class _DoubleStatCard extends StatelessWidget {
-  final String title;
-  final int annual;
-  final int total;
+  void _showCreatePartyDialog(BuildContext context) {
+    final TextEditingController controller = TextEditingController();
+    File? selectedImage;
+    bool isUploading = false;
+    final ImagePicker picker = ImagePicker();
+    DateTime selectedDate = DateTime.now();
 
-  const _DoubleStatCard(
-      {required this.title, required this.annual, required this.total});
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(builder: (context, setState) {
+          return AlertDialog(
+            title: const Text("New Party"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: controller,
+                  decoration: const InputDecoration(
+                      labelText: "Party Name", hintText: "e.g. Saturday Night"),
+                  autofocus: true,
+                ),
+                const SizedBox(height: 16),
+                // Date Picker
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                        "Date: ${selectedDate.day}/${selectedDate.month}/${selectedDate.year}"),
+                    TextButton.icon(
+                      icon: const Icon(Icons.calendar_today),
+                      label: const Text("Change"),
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: selectedDate,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2030),
+                        );
+                        if (picked != null) {
+                          setState(() => selectedDate = picked);
+                        }
+                      },
+                    )
+                  ],
+                ),
+                const SizedBox(height: 16),
+                GestureDetector(
+                  onTap: () async {
+                    final XFile? image =
+                        await picker.pickImage(source: ImageSource.gallery);
+                    if (image != null) {
+                      setState(() {
+                        selectedImage = File(image.path);
+                      });
+                    }
+                  },
+                  child: Container(
+                    height: 150,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(12),
+                      image: selectedImage != null
+                          ? DecorationImage(
+                              image: FileImage(selectedImage!),
+                              fit: BoxFit.cover)
+                          : null,
+                      border: Border.all(color: Colors.grey[400]!),
+                    ),
+                    child: selectedImage == null
+                        ? const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                                Icon(Icons.add_photo_alternate,
+                                    size: 40, color: Colors.grey),
+                                SizedBox(height: 8),
+                                Text("Add Cover Photo",
+                                    style: TextStyle(color: Colors.grey))
+                              ])
+                        : null,
+                  ),
+                ),
+                if (isUploading)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 16.0),
+                    child: CircularProgressIndicator(),
+                  )
+              ],
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Cancel")),
+              FilledButton(
+                  onPressed: isUploading
+                      ? null
+                      : () async {
+                          if (controller.text.isNotEmpty) {
+                            setState(() => isUploading = true);
+                            String? photoUrl;
+                            if (selectedImage != null) {
+                              try {
+                                photoUrl = await db.uploadPartyImage(
+                                    user.uid, selectedImage!);
+                              } catch (e) {
+                                // Handle error?
+                              }
+                            }
 
-  @override
-  Widget build(BuildContext context) {
+                            await db.createParty(
+                                user.uid, controller.text.trim(),
+                                photoUrl: photoUrl, date: selectedDate);
+                            if (context.mounted) Navigator.pop(context);
+                          }
+                        },
+                  child: const Text("Start!")),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  // Re-using the header logic but simplified/cleaned up for Sliver context
+  Widget _buildGlobalStatsHeader(BuildContext context,
+      Map<String, dynamic> stats, String username, String? photoUrl) {
     final colorScheme = Theme.of(context).colorScheme;
+    final parties = stats['parties'] ?? 0;
+    final cubatas = stats['cubatas'] ?? 0;
+    final chupitos = stats['chupitos'] ?? 0;
 
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 30,
+                  backgroundImage:
+                      photoUrl != null ? NetworkImage(photoUrl) : null,
+                  child: photoUrl == null
+                      ? Text(
+                          username.isNotEmpty ? username[0].toUpperCase() : '?',
+                          style: const TextStyle(fontSize: 24))
+                      : null,
+                ),
+                const SizedBox(width: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(username,
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.bold)),
+                    Text("Total Stats",
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(color: Colors.grey)),
+                  ],
+                )
+              ],
+            ),
+            const SizedBox(height: 24),
+            // Big Party Card
+            SizedBox(
+              width: double.infinity,
+              height: 120, // Reduced height
+              child: Card(
+                color: colorScheme.primaryContainer,
+                child: Stack(
+                  children: [
+                    Positioned(
+                        right: -20,
+                        top: -20,
+                        child: Icon(Icons.celebration,
+                            size: 150,
+                            color: colorScheme.onPrimaryContainer
+                                .withOpacity(0.1))),
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("TOTAL PARTIES",
+                              style: TextStyle(
+                                  color: colorScheme.onPrimaryContainer
+                                      .withOpacity(0.7),
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.2)),
+                          const Spacer(),
+                          Text("$parties",
+                              style: TextStyle(
+                                  fontSize: 48,
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.onPrimaryContainer,
+                                  height: 1)),
+                        ],
+                      ),
+                    )
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Drinks Row
+            Row(
+              children: [
+                Expanded(
+                    child: _buildSmallStat(context, "CUBATAS", cubatas,
+                        Icons.local_drink, colorScheme.primary)),
+                const SizedBox(width: 12),
+                Expanded(
+                    child: _buildSmallStat(context, "CHUPITOS", chupitos,
+                        Icons.local_bar, colorScheme.secondary)),
+              ],
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSmallStat(BuildContext context, String label, int value,
+      IconData icon, Color color) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.2)),
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: TextStyle(
-                  color: colorScheme.onSurfaceVariant,
-                  fontSize: 10,
-                  letterSpacing: 1.2)),
-          const Spacer(),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text('$annual',
-                style: TextStyle(
-                    color: colorScheme.onSurface,
-                    fontSize: 32,
-                    fontWeight: FontWeight.w300)),
-          ),
-          Text('THIS YEAR',
-              style: TextStyle(
-                  color: colorScheme.onSurfaceVariant.withOpacity(0.5),
-                  fontSize: 8)),
-          Divider(
-              color: colorScheme.outlineVariant.withOpacity(0.2),
-              indent: 20,
-              endIndent: 20,
-              height: 16),
-          Text('$total',
-              style: TextStyle(
-                  color: colorScheme.onSurface.withOpacity(0.8),
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold)),
-          Text('TOTAL',
-              style: TextStyle(
-                  color: colorScheme.onSurfaceVariant.withOpacity(0.5),
-                  fontSize: 8)),
-          const Spacer(),
+          Icon(icon, color: color),
+          const SizedBox(height: 8),
+          Text(label,
+              style:
+                  const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+          Text("$value",
+              style:
+                  const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
         ],
       ),
     );
